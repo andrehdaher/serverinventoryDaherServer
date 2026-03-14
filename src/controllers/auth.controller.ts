@@ -4,6 +4,7 @@ import { database } from "../firebaseConfig";
 
 export const login = async (req: Request, res: Response) => {
   const { username, password, role } = req.body;
+  console.log(req.body)
 
   try {
     const dbRef = ref(database, `users/${username}`);
