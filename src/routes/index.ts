@@ -10,6 +10,7 @@ import sellsRouter from "./sells.routes";
 import warehousesRouter from "./warehouse.routes";
 import account from "./account"
 import journalEntriesRouter from "./journalEntries.routes";
+import aiRoutes from "./ai";
 
 
 const router = Router();
@@ -26,6 +27,7 @@ router.use("/sells", sellsRouter);
 router.use("/warehouses", warehousesRouter);
 router.use('/account' , account)
 router.use("/journal-entries", journalEntriesRouter);
+router.use("/ai", aiRoutes);
 
 
 export default router;
