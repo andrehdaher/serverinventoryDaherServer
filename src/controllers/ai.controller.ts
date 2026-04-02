@@ -7,3 +7,8 @@ export const generateResponse = async (req: Request, res: Response) => {
   const { prompt } = req.body;
   console.log("Received prompt:", prompt);
 }
+
+export const test = async (req: Request, res: Response) => {
+    console.log("Received request to /test");
+    res.json({ message: "Test endpoint is working!" });
+}
