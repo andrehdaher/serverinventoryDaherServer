@@ -3,6 +3,9 @@ export interface Customer {
     name: string;
     number?: string;
     balance: number;
+    defaultPaymentAccountId?: string;
+    defaultReceivableAccountId?: string;
+    defaultSalesAccountId?: string;
     createdDate: string;
     updatedDate: string;
     purchases: any[]

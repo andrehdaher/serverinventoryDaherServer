@@ -8,6 +8,8 @@ import paymentsRouter from "./payments.routes";
 import customersRouter from "./customer.routes";
 import sellsRouter from "./sells.routes";
 import warehousesRouter from "./warehouse.routes";
+import account from "./account"
+import journalEntriesRouter from "./journalEntries.routes";
 
 
 const router = Router();
@@ -22,5 +24,8 @@ router.use("/payments", paymentsRouter);
 router.use("/customers", customersRouter);
 router.use("/sells", sellsRouter);
 router.use("/warehouses", warehousesRouter);
+router.use('/account' , account)
+router.use("/journal-entries", journalEntriesRouter);
+
 
 export default router;

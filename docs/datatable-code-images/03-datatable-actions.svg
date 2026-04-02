@@ -1,0 +1,48 @@
+<svg width="1600" height="1040" viewBox="0 0 1600 1040" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="1040" rx="28" fill="#08121F"/>
+  <rect x="34" y="34" width="1532" height="972" rx="22" fill="#111827" stroke="#1F2937" stroke-width="2"/>
+  <circle cx="78" cy="77" r="10" fill="#EF4444"/>
+  <circle cx="110" cy="77" r="10" fill="#F59E0B"/>
+  <circle cx="142" cy="77" r="10" fill="#22C55E"/>
+  <text x="190" y="84" fill="#E5E7EB" font-size="28" font-family="Segoe UI, Arial, sans-serif" font-weight="700">DataTable - Actions, Loading, and Row Styling</text>
+  <text x="1408" y="84" fill="#60A5FA" font-size="22" font-family="Segoe UI, Arial, sans-serif">03</text>
+  <foreignObject x="60" y="118" width="1480" height="850">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border-radius:20px;background:#0F172A;border:1px solid #1E293B;padding:30px;box-sizing:border-box;">
+      <pre style="margin:0;color:#E5E7EB;font: 26px/1.68 Consolas, 'Cascadia Code', 'Segoe UI Mono', monospace;white-space:pre-wrap;">
+<span style="color:#FCA5A5;">&lt;DataTable</span>
+  <span style="color:#7DD3FC;">isLoading</span>={<span style="color:#FDE68A;">isLoading</span>}
+  <span style="color:#7DD3FC;">title</span>=<span style="color:#86EFAC;">"قائمة المنتجات"</span>
+  <span style="color:#7DD3FC;">titleButton</span>={
+    <span style="color:#FCA5A5;">&lt;Button</span> <span style="color:#7DD3FC;">onClick</span>={() =&gt; <span style="color:#FDE68A;">setOpenForm</span>(<span style="color:#FCA5A5;">true</span>)}<span style="color:#FCA5A5;">&gt;</span>
+      <span style="color:#86EFAC;">إضافة منتج</span>
+    <span style="color:#FCA5A5;">&lt;/Button&gt;</span>
+  }
+  <span style="color:#7DD3FC;">columns</span>={<span style="color:#FDE68A;">productColumns</span>}
+  <span style="color:#7DD3FC;">data</span>={<span style="color:#FDE68A;">products</span>}
+  <span style="color:#7DD3FC;">getRowClassName</span>={(<span style="color:#FDE68A;">row</span>) =&gt;
+    <span style="color:#FDE68A;">row</span>.<span style="color:#FDE68A;">quantity</span> === <span style="color:#F9A8D4;">0</span>
+      ? <span style="color:#86EFAC;">"bg-destructive/20 hover:bg-destructive/40"</span>
+      : <span style="color:#FDE68A;">row</span>.<span style="color:#FDE68A;">quantity</span> &lt; <span style="color:#F9A8D4;">5</span>
+        ? <span style="color:#86EFAC;">"bg-yellow-500/20 hover:bg-yellow-500/40"</span>
+        : <span style="color:#86EFAC;">""</span>
+  }
+  <span style="color:#7DD3FC;">renderRowActions</span>={(<span style="color:#FDE68A;">row</span>) =&gt; (
+    <span style="color:#FCA5A5;">&lt;div</span> <span style="color:#7DD3FC;">className</span>=<span style="color:#86EFAC;">"flex gap-1"</span><span style="color:#FCA5A5;">&gt;</span>
+      <span style="color:#FCA5A5;">&lt;Button</span> <span style="color:#7DD3FC;">onClick</span>={(<span style="color:#FDE68A;">e</span>) =&gt; {
+        <span style="color:#FDE68A;">e</span>.<span style="color:#FDE68A;">stopPropagation</span>();
+        <span style="color:#FDE68A;">setEditRow</span>(<span style="color:#FDE68A;">row</span>);
+      }}<span style="color:#FCA5A5;">&gt;</span><span style="color:#86EFAC;">تعديل</span><span style="color:#FCA5A5;">&lt;/Button&gt;</span>
+
+      <span style="color:#FCA5A5;">&lt;Button</span> <span style="color:#7DD3FC;">variant</span>=<span style="color:#86EFAC;">"outline"</span> <span style="color:#7DD3FC;">onClick</span>={(<span style="color:#FDE68A;">e</span>) =&gt; {
+        <span style="color:#FDE68A;">e</span>.<span style="color:#FDE68A;">stopPropagation</span>();
+        <span style="color:#FDE68A;">navigate</span>(<span style="color:#86EFAC;">`/products/${row.id}`</span>);
+      }}<span style="color:#FCA5A5;">&gt;</span><span style="color:#86EFAC;">التفاصيل</span><span style="color:#FCA5A5;">&lt;/Button&gt;</span>
+    <span style="color:#FCA5A5;">&lt;/div&gt;</span>
+  )}
+<span style="color:#FCA5A5;">/&gt;</span>
+      </pre>
+    </div>
+  </foreignObject>
+  <text x="60" y="1000" fill="#94A3B8" font-size="20" font-family="Segoe UI, Arial, sans-serif">This pattern is ideal for admin tables with add buttons, row actions, and loading skeletons.</text>
+</svg>
+

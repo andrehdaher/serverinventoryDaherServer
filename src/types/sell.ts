@@ -1,9 +1,12 @@
 export interface sell {
-  id?: string; // معرّف الفاتورة
-  customerId: string; // معرف الزبون (يمكن يكون null لو بيع مباشر بدون زبون)
-  totalPrice: number; // المجموع الكلي للفاتورة
-  paymentStatus: "cash" | "part" | "debt"; // حالة الدفع
-  remainingDebt: number; // المبلغ المتبقي على الزبون
+  id?: string;
+  customerId: string;
+  totalPrice: number;
+  paymentStatus: "cash" | "part" | "debt";
+  remainingDebt: number;
+  paymentAccountId?: string;
+  receivableAccountId?: string;
+  salesAccountId?: string;
   currency: string;
   exchangeRate: number;
   amount_base: number;
@@ -20,7 +23,7 @@ export interface sell {
     warehouse: string;
     qty: number;
   }[];
-  date?: string; // تاريخ العملية
+  date?: string;
   partValue?: number;
   discount?: number;
 }

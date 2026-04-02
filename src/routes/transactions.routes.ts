@@ -5,65 +5,67 @@ import { updateCustomerBalanceInternal } from "../controllers/customer.controlle
 
 const router = express.Router();
 
-router.post("/purchase", (req: Request, res: Response) => {
+router.post("/purchase", async (req: Request, res: Response) => {
+  console.log(req.body)
   try {
     const { newPurchase, newProduct } = req.body;
+
     if (!newPurchase || !newProduct) {
       throw new Error("❌ بيانات الشراء أو المنتج غير مكتملة");
     }
-    const result = handlePurchase({newPurchase, newProduct});
+    const result = await handlePurchase({newPurchase, newProduct});
     res.json({ message: "✅ تمت عملية الشراء", data: result });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
   }
 });
 
-router.post("/sell", (req: Request, res: Response) => {
+router.post("/sell", async (req: Request, res: Response) => {
   try {
     const { newSell } = req.body;
     if (!newSell) {
       throw new Error("❌ بيانات البيع غير مكتملة");
     }
-    const result = handleSell({newSell});
+    const result = await handleSell({newSell});
     res.json({ message: "✅ تمت عملية البيع", data: result });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
   }
 });
 
-router.post("/customerPayment", (req: Request, res: Response) => {
+router.post("/customerPayment", async (req: Request, res: Response) => {
   try {
     const { paymentData } = req.body;
     if (!paymentData) {
       throw new Error("❌ بيانات الدفع غير مكتملة");
     }
-    const result = customerPayment(paymentData);
+    const result = await customerPayment(paymentData);
     res.json({ message: "✅ تمت عملية الدفع", data: result });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
   }
 });
 
-router.post("/supplierPayment", (req: Request, res: Response) => {
+router.post("/supplierPayment", async (req: Request, res: Response) => {
   try {
     const { paymentData } = req.body;
     if (!paymentData) {
       throw new Error("❌ بيانات الدفع غير مكتملة");
     }
-    const result = supplierPayment(paymentData);
+    const result = await supplierPayment(paymentData);
     res.json({ message: "✅ تمت عملية الدفع", data: result });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
   }
 });
 
-router.post("/SupplierReturn", (req: Request, res: Response) => {
+router.post("/SupplierReturn", async (req: Request, res: Response) => {
   try {
     const { newReturn } = req.body;
     if (!newReturn) {
       throw new Error("❌ بيانات الدفع غير مكتملة");
     }
-    const result = handleSupplierReturn(newReturn);
+    const result = await handleSupplierReturn(newReturn);
     res.json({ message: "✅ تمت عملية الدفع", data: result });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -83,13 +85,13 @@ router.post("/CustomerReturn", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/warehouseTransfer", (req: Request, res: Response) => {
+router.post("/warehouseTransfer", async (req: Request, res: Response) => {
   try {
     const { transferData } = req.body;
     if (!transferData) {
       throw new Error("❌ بيانات الدفع غير مكتملة");
     }
-    const result = warehouseTransfer(transferData);
+    const result = await warehouseTransfer(transferData);
     res.json({ message: "✅ تمت عملية النقل بين المستودعات", data: result });
   } catch (error: any) {
     res.status(400).json({ message: error.message });

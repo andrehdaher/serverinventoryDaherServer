@@ -3,6 +3,26 @@ import { Request, Response } from "express";
 import { Payment } from "../types/payment";
 import { ref, get, set, push } from "firebase/database";
 import { database } from "../firebaseConfig";
+import { updateAccountBalanceInternal } from "./account.controller";
+import { createJournalEntryInternal } from "./journalEntries.controller";
+
+const normalizeStoredDate = (value: unknown) => {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/،/g, ",")
+    .trim();
+
+  const parsed = new Date(normalized);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+
+  return null;
+};
 
 // ✅ get all payments as array
 export const getAll = async (_req: Request, res: Response) => {
@@ -30,7 +50,11 @@ export const getMonthPayments = async (req: Request, res: Response) => {
     const payments = snapshot.exists() ? Object.values(snapshot.val()) : [];
 
     const filteredPayments = payments.filter((p: any) => {
-      const paymentDate = new Date(p.date);
+      const paymentDate = normalizeStoredDate(p.date);
+      if (!paymentDate) {
+        return false;
+      }
+
       return (
         paymentDate.getMonth() + 1 === Number(month) &&
         paymentDate.getFullYear() === Number(year)
@@ -50,7 +74,7 @@ export const createPayment = async (req: Request, res: Response) => {
     const { newPayment }: { newPayment: Payment } = req.body;
 
     const id = uuidv4();
-    const now = new Date().toLocaleString();
+    const now = new Date().toISOString();
 
     const payment: Payment = {
       ...newPayment,
@@ -59,6 +83,102 @@ export const createPayment = async (req: Request, res: Response) => {
     };
 
     await set(ref(database, `payment/${id}`), payment);
+
+    const amount = Math.abs(Number(payment.amount || 0));
+
+    if (
+      payment.type === "income" &&
+      payment.paymentAccountId &&
+      payment.salesAccountId &&
+      amount > 0
+    ) {
+      await updateAccountBalanceInternal({
+        accountId: payment.paymentAccountId,
+        entryType: "debit",
+        amount,
+      });
+
+      await updateAccountBalanceInternal({
+        accountId: payment.salesAccountId,
+        entryType: "credit",
+        amount,
+      });
+    }
+
+    if (
+      payment.type === "expense" &&
+      payment.paymentAccountId &&
+      payment.expenseAccountId &&
+      amount > 0
+    ) {
+      await updateAccountBalanceInternal({
+        accountId: payment.expenseAccountId,
+        entryType: "debit",
+        amount,
+      });
+
+      await updateAccountBalanceInternal({
+        accountId: payment.paymentAccountId,
+        entryType: "credit",
+        amount,
+      });
+    }
+
+    if (
+      payment.type === "income" &&
+      payment.paymentAccountId &&
+      payment.salesAccountId &&
+      amount > 0
+    ) {
+      await createJournalEntryInternal({
+        date: payment.date,
+        description: payment.note || "قيد دفعة تحصيل",
+        referenceType: "payment",
+        referenceId: payment.id,
+        lines: [
+          {
+            accountId: payment.paymentAccountId,
+            debit: amount,
+            credit: 0,
+            note: payment.note,
+          },
+          {
+            accountId: payment.salesAccountId,
+            debit: 0,
+            credit: amount,
+            note: payment.note,
+          },
+        ],
+      });
+    }
+
+    if (
+      payment.type === "expense" &&
+      payment.paymentAccountId &&
+      payment.expenseAccountId &&
+      amount > 0
+    ) {
+      await createJournalEntryInternal({
+        date: payment.date,
+        description: payment.note || "قيد دفعة صرف",
+        referenceType: "payment",
+        referenceId: payment.id,
+        lines: [
+          {
+            accountId: payment.expenseAccountId,
+            debit: amount,
+            credit: 0,
+            note: payment.note,
+          },
+          {
+            accountId: payment.paymentAccountId,
+            debit: 0,
+            credit: amount,
+            note: payment.note,
+          },
+        ],
+      });
+    }
 
     res.status(201).json(payment);
   } catch (error: any) {
@@ -72,7 +192,7 @@ export const createPaymentInternal = async (
   newPayment: Payment
 ): Promise<Payment> => {
   const id = uuidv4();
-  const now = new Date().toLocaleString();
+  const now = new Date().toISOString();
 
   const payment: Payment = {
     ...newPayment,

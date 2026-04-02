@@ -3,6 +3,9 @@ export interface Supplier {
     name: string;
     number?: string;
     balance: number;
+    defaultPaymentAccountId?: string;
+    defaultPayableAccountId?: string;
+    defaultInventoryAccountId?: string;
     createdDate: string;
     updatedDate: string;
     purchases: any[];

@@ -1,0 +1,37 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="980" rx="28" fill="#09131E"/>
+  <rect x="34" y="34" width="1532" height="912" rx="22" fill="#111827" stroke="#1F2937" stroke-width="2"/>
+  <circle cx="78" cy="77" r="10" fill="#EF4444"/>
+  <circle cx="110" cy="77" r="10" fill="#F59E0B"/>
+  <circle cx="142" cy="77" r="10" fill="#22C55E"/>
+  <text x="190" y="84" fill="#E5E7EB" font-size="28" font-family="Segoe UI, Arial, sans-serif" font-weight="700">DataTable - Row Click and Visibility Rules</text>
+  <text x="1408" y="84" fill="#60A5FA" font-size="22" font-family="Segoe UI, Arial, sans-serif">04</text>
+  <foreignObject x="60" y="118" width="1480" height="790">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border-radius:20px;background:#0F172A;border:1px solid #1E293B;padding:30px;box-sizing:border-box;">
+      <pre style="margin:0;color:#E5E7EB;font: 28px/1.68 Consolas, 'Cascadia Code', 'Segoe UI Mono', monospace;white-space:pre-wrap;">
+<span style="color:#C084FC;">const</span> <span style="color:#FDE68A;">customerColumns</span> = [
+  { <span style="color:#7DD3FC;">key</span>: <span style="color:#86EFAC;">"id"</span>, <span style="color:#7DD3FC;">label</span>: <span style="color:#86EFAC;">"المعرف"</span>, <span style="color:#7DD3FC;">hidden</span>: <span style="color:#FCA5A5;">true</span> },
+  { <span style="color:#7DD3FC;">key</span>: <span style="color:#86EFAC;">"name"</span>, <span style="color:#7DD3FC;">label</span>: <span style="color:#86EFAC;">"الاسم"</span>, <span style="color:#7DD3FC;">sortable</span>: <span style="color:#FCA5A5;">true</span> },
+  { <span style="color:#7DD3FC;">key</span>: <span style="color:#86EFAC;">"balance"</span>, <span style="color:#7DD3FC;">label</span>: <span style="color:#86EFAC;">"الرصيد"</span>, <span style="color:#7DD3FC;">sortable</span>: <span style="color:#FCA5A5;">true</span> },
+  { <span style="color:#7DD3FC;">key</span>: <span style="color:#86EFAC;">"payPrice"</span>, <span style="color:#7DD3FC;">label</span>: <span style="color:#86EFAC;">"سعر الشراء"</span>, <span style="color:#7DD3FC;">sortable</span>: <span style="color:#FCA5A5;">true</span>, <span style="color:#7DD3FC;">onlyAdmin</span>: <span style="color:#FCA5A5;">true</span> },
+];
+
+<span style="color:#FCA5A5;">&lt;DataTable</span>
+  <span style="color:#7DD3FC;">title</span>=<span style="color:#86EFAC;">"الزبائن"</span>
+  <span style="color:#7DD3FC;">columns</span>={<span style="color:#FDE68A;">customerColumns</span>}
+  <span style="color:#7DD3FC;">data</span>={<span style="color:#FDE68A;">customers</span>}
+  <span style="color:#7DD3FC;">onRowClick</span>={(<span style="color:#FDE68A;">row</span>) =&gt; {
+    <span style="color:#FDE68A;">navigate</span>(<span style="color:#86EFAC;">"/customerDetails"</span>, {
+      <span style="color:#7DD3FC;">state</span>: { <span style="color:#7DD3FC;">id</span>: <span style="color:#FDE68A;">row</span>.<span style="color:#FDE68A;">id</span> },
+    });
+  }}
+<span style="color:#FCA5A5;">/&gt;</span>
+
+<span style="color:#94A3B8;">// hidden: hides a column completely</span>
+<span style="color:#94A3B8;">// onlyAdmin: shows a column only for admin users</span>
+<span style="color:#94A3B8;">// onRowClick: lets the row behave like a navigation item</span>
+      </pre>
+    </div>
+  </foreignObject>
+  <text x="60" y="940" fill="#94A3B8" font-size="20" font-family="Segoe UI, Arial, sans-serif">Great for details pages where each row opens a deeper screen.</text>
+</svg>

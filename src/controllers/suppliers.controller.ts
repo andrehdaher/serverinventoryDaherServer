@@ -74,7 +74,18 @@ export const updateSupplierInfo = async (
   const supplier = snapshot.val() as Supplier;
   const now = new Date().toLocaleString();
 
-  let updatedSupplier: Supplier = { ...supplier, updatedDate: now, name: updates.name, number: updates.number };
+  let updatedSupplier: Supplier = {
+    ...supplier,
+    updatedDate: now,
+    name: updates.name,
+    number: updates.number,
+    defaultPaymentAccountId:
+      updates.defaultPaymentAccountId ?? supplier.defaultPaymentAccountId,
+    defaultPayableAccountId:
+      updates.defaultPayableAccountId ?? supplier.defaultPayableAccountId,
+    defaultInventoryAccountId:
+      updates.defaultInventoryAccountId ?? supplier.defaultInventoryAccountId,
+  };
   await update(dbRef, updatedSupplier);
   res.json({ message: "✅ تم تحديث بيانات المورد", data: updatedSupplier });
   return updatedSupplier;

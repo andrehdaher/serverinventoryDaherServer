@@ -83,7 +83,18 @@ export const updateCustomerInfo = async (
   const customer = snapshot.val() as Customer;
   const now = new Date().toLocaleString();
 
-  let updatedCustomer: Customer = { ...customer, updatedDate: now, name: updates.name, number: updates.number };
+  let updatedCustomer: Customer = {
+    ...customer,
+    updatedDate: now,
+    name: updates.name,
+    number: updates.number,
+    defaultPaymentAccountId:
+      updates.defaultPaymentAccountId ?? customer.defaultPaymentAccountId,
+    defaultReceivableAccountId:
+      updates.defaultReceivableAccountId ?? customer.defaultReceivableAccountId,
+    defaultSalesAccountId:
+      updates.defaultSalesAccountId ?? customer.defaultSalesAccountId,
+  };
   await update(dbRef, updatedCustomer);
   res.json({ message: "✅ تم تحديث بيانات العميل", data: updatedCustomer });
   return updatedCustomer;

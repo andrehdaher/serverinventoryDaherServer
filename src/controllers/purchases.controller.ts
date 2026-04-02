@@ -35,10 +35,23 @@ export const createPurchase = async (req: Request, res: Response) => {
       currency,
       exchangeRate,
       amount_base,
+      inventoryAccountId,
+      payableAccountId,
+      paymentAccountId,
     } = req.body;
-
     const id = uuidv4();
     const NowDate = new Date().toLocaleString();
+
+    // التحقق من الحقول المطلوبة
+    if (!supplierId) {
+      return res.status(400).json({ error: "معرف المورد مطلوب" });
+    }
+    if (!inventoryAccountId) {
+      return res.status(400).json({ error: "معرف حساب المخزون مطلوب" });
+    }
+    if (!payableAccountId) {
+      return res.status(400).json({ error: "معرف حساب الدائن مطلوب" });
+    }
 
     const purchaseData: purchase = {
       id,
@@ -51,10 +64,13 @@ export const createPurchase = async (req: Request, res: Response) => {
       paymentStatus,
       remainingDebt,
       date: NowDate,
-      name,
+      name: name.trim(),
       currency,
       exchangeRate,
       amount_base,
+      inventoryAccountId,
+      payableAccountId,
+      paymentAccountId,
     };
 
     // ✅ حفظ عملية الشراء في قاعدة البيانات

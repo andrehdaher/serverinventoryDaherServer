@@ -1,0 +1,44 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="980" rx="28" fill="#07111D"/>
+  <rect x="34" y="34" width="1532" height="912" rx="22" fill="#111827" stroke="#1F2937" stroke-width="2"/>
+  <circle cx="78" cy="77" r="10" fill="#EF4444"/>
+  <circle cx="110" cy="77" r="10" fill="#F59E0B"/>
+  <circle cx="142" cy="77" r="10" fill="#22C55E"/>
+  <text x="190" y="84" fill="#E5E7EB" font-size="28" font-family="Segoe UI, Arial, sans-serif" font-weight="700">DataTable - Options and Layout</text>
+  <text x="1408" y="84" fill="#60A5FA" font-size="22" font-family="Segoe UI, Arial, sans-serif">02</text>
+  <foreignObject x="60" y="118" width="1480" height="790">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border-radius:20px;background:#0F172A;border:1px solid #1E293B;padding:30px;box-sizing:border-box;">
+      <pre style="margin:0;color:#E5E7EB;font: 28px/1.72 Consolas, 'Cascadia Code', 'Segoe UI Mono', monospace;white-space:pre-wrap;">
+<span style="color:#C084FC;">const</span> <span style="color:#FDE68A;">accountColumns</span> = [
+  { <span style="color:#7DD3FC;">key</span>: <span style="color:#86EFAC;">"name"</span>, <span style="color:#7DD3FC;">label</span>: <span style="color:#86EFAC;">"الحقل"</span> },
+  { <span style="color:#7DD3FC;">key</span>: <span style="color:#86EFAC;">"value"</span>, <span style="color:#7DD3FC;">label</span>: <span style="color:#86EFAC;">"القيمة"</span> },
+];
+
+<span style="color:#C084FC;">const</span> <span style="color:#FDE68A;">accountInfo</span> = [
+  { <span style="color:#7DD3FC;">name</span>: <span style="color:#86EFAC;">"الاسم"</span>, <span style="color:#7DD3FC;">value</span>: <span style="color:#86EFAC;">"الصندوق"</span> },
+  { <span style="color:#7DD3FC;">name</span>: <span style="color:#86EFAC;">"العملة"</span>, <span style="color:#7DD3FC;">value</span>: <span style="color:#86EFAC;">"USD"</span> },
+  { <span style="color:#7DD3FC;">name</span>: <span style="color:#86EFAC;">"الرصيد"</span>, <span style="color:#7DD3FC;">value</span>: <span style="color:#86EFAC;">"12,500"</span> },
+];
+
+<span style="color:#FCA5A5;">&lt;DataTable</span>
+  <span style="color:#7DD3FC;">title</span>=<span style="color:#86EFAC;">"البيانات الأساسية"</span>
+  <span style="color:#7DD3FC;">description</span>=<span style="color:#86EFAC;">"جدول ثابت بدون بحث"</span>
+  <span style="color:#7DD3FC;">columns</span>={<span style="color:#FDE68A;">accountColumns</span>}
+  <span style="color:#7DD3FC;">data</span>={<span style="color:#FDE68A;">accountInfo</span>}
+  <span style="color:#7DD3FC;">searchable</span>={<span style="color:#FCA5A5;">false</span>}
+  <span style="color:#7DD3FC;">defaultPageSize</span>={<span style="color:#FDE68A;">accountInfo</span>.length || <span style="color:#F9A8D4;">10</span>}
+  <span style="color:#7DD3FC;">pageSizeOptions</span>={[<span style="color:#F9A8D4;">10</span>, <span style="color:#F9A8D4;">20</span>, <span style="color:#F9A8D4;">50</span>]}
+  <span style="color:#7DD3FC;">className</span>=<span style="color:#86EFAC;">"w-full"</span>
+<span style="color:#FCA5A5;">/&gt;</span>
+
+<span style="color:#94A3B8;">// Useful options:</span>
+<span style="color:#94A3B8;">// searchable: hide the search field</span>
+<span style="color:#94A3B8;">// defaultPageSize: initial row count</span>
+<span style="color:#94A3B8;">// pageSizeOptions: allowed page sizes</span>
+<span style="color:#94A3B8;">// className: wrapper styling</span>
+      </pre>
+    </div>
+  </foreignObject>
+  <text x="60" y="940" fill="#94A3B8" font-size="20" font-family="Segoe UI, Arial, sans-serif">Use these props when you need a more controlled table layout.</text>
+</svg>
+

@@ -13,5 +13,11 @@ export interface purchase {
     amount_base: number,
     paymentStatus: string,
     remainingDebt: number,
-    date: string
+        inventoryAccountId: string,
+payableAccountId: string,
+paymentAccountId?: string,
+    date: string,
+
+
+
 }
