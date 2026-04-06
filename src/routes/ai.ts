@@ -9,7 +9,7 @@ import {
 
 const router = express.Router();
 
-router.put('/snapshot/save', saveSnapshot);
+router.post('/snapshot/save', saveSnapshot);
 router.get('/latest', getLatestResponse);
 router.get('/allData', allData);
 export default router;
