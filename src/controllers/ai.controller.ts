@@ -235,8 +235,8 @@ const getRequestTitle = (body: Request["body"]): string | undefined => {
 // حفظ snapshot يومي
 export const saveSnapshot = async (req: Request, res: Response) => {
   try {
-    console.log("Received snapshot save request with body:", req.body);
-    const data = req.body;
+    console.log("Received snapshot save request with body:", req.body.prompt);
+    const data = req.body.prompt;
 
     if (!data || !data.date) {
       return res.status(400).json({ error: "Missing snapshot data or date" });
