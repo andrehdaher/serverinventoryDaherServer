@@ -235,6 +235,7 @@ const getRequestTitle = (body: Request["body"]): string | undefined => {
 // حفظ snapshot يومي
 export const saveSnapshot = async (req: Request, res: Response) => {
   try {
+    console.log("Received snapshot save request with body:", req.body);
     const data = req.body;
 
     if (!data || !data.date) {
