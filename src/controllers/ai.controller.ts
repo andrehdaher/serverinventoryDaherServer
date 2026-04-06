@@ -193,20 +193,22 @@ export const getLatestResponse = async (req: Request, res: Response) => {
 };
 
 export const allData = async (req: Request, res: Response) => {
-  const dbRef = ref(database , 'accounts , customers , journalEntries , payments , products ,purchases , suppliers , sells , warehouses , ai');
+  const dbRef = ref(database);
   try {
-    const snapshot = await get (dbRef);
+    const snapshot = await get(dbRef);
+
     if (snapshot.exists()) {
-      return res.status(200).json(snapshot.val());
+      const data = snapshot.val() as Record<string, unknown>;
+      const { users, ...allDataExceptUsers } = data;
+
+      return res.status(200).json(allDataExceptUsers);
     } else {
       return res.status(404).json({ error: "No data found." });
     }
   } catch (error) {
-    console.error("Error fetching all AI data:", error);
+    console.error("Error fetching all data except users:", error);
     return res.status(500).json({
-      error: "An error occurred while fetching the AI data.",
+      error: "An error occurred while fetching the data.",
     });
   }
-
 };
-
