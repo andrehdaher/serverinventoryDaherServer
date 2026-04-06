@@ -2,14 +2,14 @@
 import express from 'express';
 import {
   allData,
-  generateResponse,
   getLatestResponse,
+  saveSnapshot,
 } from "../controllers/ai.controller";
 
 
 const router = express.Router();
 
-router.post('/generate', generateResponse);
+router.post('/snapshot/save', saveSnapshot);
 router.get('/latest', getLatestResponse);
 router.get('/allData', allData);
 export default router;

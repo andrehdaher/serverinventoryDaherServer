@@ -231,45 +231,27 @@ const getRequestTitle = (body: Request["body"]): string | undefined => {
   return undefined;
 };
 
-export const generateResponse = async (req: Request, res: Response) => {
-  console.log("Received request to /generate");
-  const rawText = getRequestText(req.body);
-  const payload = getRequestPayload(req.body);
-  const title = getRequestTitle(req.body);
 
-  if (!rawText.trim() && payload === undefined) {
-    return res.status(400).json({
-      error: "A prompt, content, text field, or JSON body is required.",
-    });
-  }
-
-  console.log("Received AI payload:", payload ?? rawText);
-
+// حفظ snapshot يومي
+export const saveSnapshot = async (req: Request, res: Response) => {
   try {
-    const entry = buildStoredEntry(payload ?? rawText, title);
-    const historyEntryRef = push(ref(database, "ai/history"));
-    const entryId = historyEntryRef.key || `ai-${Date.now()}`;
+    const data = req.body;
 
-    await set(historyEntryRef, entry);
-    await update(ref(database, "ai"), {
-      lastPrompt: entry.rawText,
-      lastResponse: entry,
-      lastResponseId: entryId,
-      updatedAt: entry.createdAt,
+    if (!data || !data.date) {
+      return res.status(400).json({ error: "Missing snapshot data or date" });
+    }
+
+    const snapshotRef = ref(database, `analytics/snapshots/${data.date}`);
+
+    await set(snapshotRef, {
+      ...data,
+      createdAt: new Date().toISOString(),
     });
 
-    console.log("Stored AI entry:", { entryId, entry });
-
-    return res.status(200).json({
-      message: "AI response stored successfully!",
-      entryId,
-      data: entry,
-    });
+    res.json({ message: "Snapshot saved successfully" });
   } catch (error: any) {
-    console.error("Error storing prompt in database:", error);
-    return res.status(500).json({
-      error: "An error occurred while processing the prompt.",
-    });
+    console.error("Error saving snapshot:", error);
+    res.status(500).json({ error: error.message });
   }
 };
 
