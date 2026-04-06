@@ -1,10 +1,24 @@
 import { Response, Request } from "express";
 import { get, push, ref, set, update } from "firebase/database";
 import { database } from "../firebaseConfig";
-import { AIDataSnapshot, AISection, AIStoredEntry } from "../types/ai";
+import {
+  AIDataSnapshot,
+  AIJsonValue,
+  AISection,
+  AIStoredEntry,
+} from "../types/ai";
 
 const NUMBERED_SECTION_REGEX = /(?:^|\s)(\d+)\)\s*([\s\S]*?)(?=(?:\s\d+\)\s)|$)/g;
 const BULLET_SPLIT_REGEX = /\s+-\s+/;
+const JSON_WRAPPER_KEYS = new Set([
+  "title",
+  "prompt",
+  "content",
+  "text",
+  "payload",
+  "data",
+  "result",
+]);
 
 const normalizeWhitespace = (value: string): string =>
   value
@@ -13,6 +27,36 @@ const normalizeWhitespace = (value: string): string =>
     .replace(/[ \t]+/g, " ")
     .replace(/\n+/g, "\n")
     .trim();
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
+const isJsonValue = (value: unknown): value is AIJsonValue => {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    return value.every(isJsonValue);
+  }
+
+  if (isPlainObject(value)) {
+    return Object.values(value).every(isJsonValue);
+  }
+
+  return false;
+};
 
 const extractItems = (content: string): string[] =>
   content
@@ -76,13 +120,50 @@ const parseSections = (rawText: string, fallbackTitle?: string): AISection[] => 
   ];
 };
 
-const buildStoredEntry = (rawText: string, title?: string): AIStoredEntry => {
+const buildPayloadSummary = (payload: AIJsonValue): string => {
+  if (Array.isArray(payload)) {
+    if (payload.length === 0) {
+      return "JSON array (0 items)";
+    }
+
+    const firstItem = payload[0];
+
+    if (isPlainObject(firstItem)) {
+      const type = typeof firstItem.type === "string" ? firstItem.type : "JSON array";
+      const date =
+        typeof firstItem.date === "string" ? ` - ${firstItem.date}` : "";
+
+      return `${type}${date} (${payload.length} item${payload.length === 1 ? "" : "s"})`;
+    }
+
+    return `JSON array (${payload.length} items)`;
+  }
+
+  if (isPlainObject(payload)) {
+    const type = typeof payload.type === "string" ? payload.type : "JSON object";
+    const date = typeof payload.date === "string" ? ` - ${payload.date}` : "";
+
+    return `${type}${date}`;
+  }
+
+  return String(payload);
+};
+
+const buildStoredEntry = (
+  input: string | AIJsonValue,
+  title?: string
+): AIStoredEntry => {
+  const payload = typeof input === "string" ? undefined : input;
+  const rawText =
+    typeof input === "string" ? input : JSON.stringify(input, null, 2);
   const normalizedText = normalizeWhitespace(rawText);
   const sections = parseSections(normalizedText, title);
   const summary =
-    sections[0]?.items[0] ||
-    sections[0]?.content ||
-    normalizedText.slice(0, 200);
+    payload !== undefined
+      ? buildPayloadSummary(payload)
+      : sections[0]?.items[0] ||
+        sections[0]?.content ||
+        normalizedText.slice(0, 200);
 
   return {
     title: title?.trim() || "AI Response",
@@ -90,6 +171,7 @@ const buildStoredEntry = (rawText: string, title?: string): AIStoredEntry => {
     summary,
     sections,
     createdAt: new Date().toISOString(),
+    ...(payload !== undefined ? { payload } : {}),
   };
 };
 
@@ -109,24 +191,62 @@ const getRequestText = (body: Request["body"]): string => {
   return "";
 };
 
+const getRequestPayload = (body: Request["body"]): AIJsonValue | undefined => {
+  if (isPlainObject(body)) {
+    const payloadCandidates = [body.payload, body.data, body.result];
+
+    for (const candidate of payloadCandidates) {
+      if (isJsonValue(candidate)) {
+        return candidate;
+      }
+    }
+
+    const hasBusinessKeys = Object.keys(body).some(
+      (key) => !JSON_WRAPPER_KEYS.has(key)
+    );
+
+    if (hasBusinessKeys && isJsonValue(body)) {
+      return body;
+    }
+
+    return undefined;
+  }
+
+  if (Array.isArray(body) && isJsonValue(body)) {
+    return body;
+  }
+
+  return undefined;
+};
+
+const getRequestTitle = (body: Request["body"]): string | undefined => {
+  if (
+    isPlainObject(body) &&
+    typeof body.title === "string" &&
+    body.title.trim()
+  ) {
+    return body.title.trim();
+  }
+
+  return undefined;
+};
+
 export const generateResponse = async (req: Request, res: Response) => {
   console.log("Received request to /generate");
   const rawText = getRequestText(req.body);
-  const title =
-    typeof req.body?.title === "string" && req.body.title.trim()
-      ? req.body.title
-      : undefined;
+  const payload = getRequestPayload(req.body);
+  const title = getRequestTitle(req.body);
 
-  if (!rawText.trim()) {
+  if (!rawText.trim() && payload === undefined) {
     return res.status(400).json({
-      error: "A prompt, content, or text field is required.",
+      error: "A prompt, content, text field, or JSON body is required.",
     });
   }
 
-  console.log("Received AI text:", rawText);
+  console.log("Received AI payload:", payload ?? rawText);
 
   try {
-    const entry = buildStoredEntry(rawText, title);
+    const entry = buildStoredEntry(payload ?? rawText, title);
     const historyEntryRef = push(ref(database, "ai/history"));
     const entryId = historyEntryRef.key || `ai-${Date.now()}`;
 
