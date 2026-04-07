@@ -175,61 +175,8 @@ const buildStoredEntry = (
   };
 };
 
-const getRequestText = (body: Request["body"]): string => {
-  if (typeof body?.prompt === "string" && body.prompt.trim()) {
-    return body.prompt;
-  }
 
-  if (typeof body?.content === "string" && body.content.trim()) {
-    return body.content;
-  }
 
-  if (typeof body?.text === "string" && body.text.trim()) {
-    return body.text;
-  }
-
-  return "";
-};
-
-const getRequestPayload = (body: Request["body"]): AIJsonValue | undefined => {
-  if (isPlainObject(body)) {
-    const payloadCandidates = [body.payload, body.data, body.result];
-
-    for (const candidate of payloadCandidates) {
-      if (isJsonValue(candidate)) {
-        return candidate;
-      }
-    }
-
-    const hasBusinessKeys = Object.keys(body).some(
-      (key) => !JSON_WRAPPER_KEYS.has(key)
-    );
-
-    if (hasBusinessKeys && isJsonValue(body)) {
-      return body;
-    }
-
-    return undefined;
-  }
-
-  if (Array.isArray(body) && isJsonValue(body)) {
-    return body;
-  }
-
-  return undefined;
-};
-
-const getRequestTitle = (body: Request["body"]): string | undefined => {
-  if (
-    isPlainObject(body) &&
-    typeof body.title === "string" &&
-    body.title.trim()
-  ) {
-    return body.title.trim();
-  }
-
-  return undefined;
-};
 
 
 // حفظ snapshot يومي
@@ -255,6 +202,46 @@ export const saveSnapshot = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+
+export const getPreviousSnapshot = async (req: Request, res: Response) => {
+  try {
+    const { date } = req.query;
+
+    if (!date || typeof date !== "string") {
+      return res.status(400).json({ error: "date is required" });
+    }
+
+    const snapshotsRef = ref(database, "analytics/snapshots");
+    const snapshot = await get(snapshotsRef);
+
+    if (!snapshot.exists()) {
+      return res.status(404).json({ error: "No snapshots found" });
+    }
+
+    const allSnapshots = snapshot.val();
+
+    const previousDates = Object.keys(allSnapshots)
+      .filter((d) => d < date)
+      .sort((a, b) => b.localeCompare(a));
+
+    if (previousDates.length === 0) {
+      return res.json(null);
+    }
+
+    const previousDate = previousDates[0];
+    return res.json({
+      ...allSnapshots[previousDate],
+      type: "yesterday",
+      date: previousDate,
+    });
+  } catch (error: any) {
+    console.error("Error fetching previous snapshot:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 
 export const getLatestResponse = async (req: Request, res: Response) => {
   console.log("Received request to /latest");
