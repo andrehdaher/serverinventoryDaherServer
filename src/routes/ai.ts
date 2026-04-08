@@ -3,7 +3,7 @@ import express from 'express';
 import {
   allData,
   getLatestResponse,
-  getPreviousSnapshot,
+  getSnapshot,
   saveSnapshot,
 } from "../controllers/ai.controller";
 
@@ -11,8 +11,7 @@ import {
 const router = express.Router();
 
 router.put('/snapshot/save', saveSnapshot);
-router.get("/snapshot/previous", getPreviousSnapshot);
-
+router.get("/snapshot/previous", getSnapshot);
 router.get('/latest', getLatestResponse);
 router.get('/allData', allData);
 export default router;

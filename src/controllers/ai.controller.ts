@@ -205,37 +205,19 @@ export const saveSnapshot = async (req: Request, res: Response) => {
 
 
 
-export const getPreviousSnapshot = async (req: Request, res: Response) => {
+export const getSnapshot = async (req: Request, res: Response) => {
   try {
-    const { date } = req.query;
 
-    if (!date || typeof date !== "string") {
-      return res.status(400).json({ error: "date is required" });
-    }
 
     const snapshotsRef = ref(database, "analytics/snapshots");
     const snapshot = await get(snapshotsRef);
 
+
     if (!snapshot.exists()) {
       return res.status(404).json({ error: "No snapshots found" });
     }
+    res.status(200).json(snapshot.val());
 
-    const allSnapshots = snapshot.val();
-
-    const previousDates = Object.keys(allSnapshots)
-      .filter((d) => d < date)
-      .sort((a, b) => b.localeCompare(a));
-
-    if (previousDates.length === 0) {
-      return res.json(null);
-    }
-
-    const previousDate = previousDates[0];
-    return res.json({
-      ...allSnapshots[previousDate],
-      type: "yesterday",
-      date: previousDate,
-    });
   } catch (error: any) {
     console.error("Error fetching previous snapshot:", error);
     return res.status(500).json({ error: error.message });
