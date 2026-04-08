@@ -11,7 +11,7 @@ import {
 const router = express.Router();
 
 router.put('/snapshot/save', saveSnapshot);
-router.get("/snapshot/previous", getSnapshot);
+router.get("/snapshot/get", getSnapshot);
 router.get('/latest', getLatestResponse);
 router.get('/allData', allData);
 export default router;
