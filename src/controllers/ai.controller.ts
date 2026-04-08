@@ -196,7 +196,7 @@ export const saveSnapshot = async (req: Request, res: Response) => {
       createdAt: new Date().toISOString(),
     });
 
-    res.json({ message: "Snapshot saved successfully" });
+    res.json({ ...data, createdAt: new Date().toISOString() });
   } catch (error: any) {
     console.error("Error saving snapshot:", error);
     res.status(500).json({ error: error.message });
