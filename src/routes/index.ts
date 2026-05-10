@@ -11,6 +11,7 @@ import warehousesRouter from "./warehouse.routes";
 import account from "./account"
 import journalEntriesRouter from "./journalEntries.routes";
 import aiRoutes from "./ai";
+import returnsRouter from "./returns.routes";
 
 
 const router = Router();
@@ -26,6 +27,7 @@ router.use("/customers", customersRouter);
 router.use("/sells", sellsRouter);
 router.use("/warehouses", warehousesRouter);
 router.use('/account' , account)
+router.use("/returns", returnsRouter);
 router.use("/journal-entries", journalEntriesRouter);
 router.use("/ai", aiRoutes);
 

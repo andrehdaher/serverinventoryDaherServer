@@ -19,9 +19,7 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: "كلمة المرور غير صحيحة" });
     }
 
-    if (role && user.role !== role) {
-      return res.status(403).json({ error: "صلاحيات غير مطابقة" });
-    }
+
 
     // ✅ تسجيل الدخول ناجح
     return res.json({
