@@ -19,6 +19,8 @@ const JSON_WRAPPER_KEYS = new Set([
   "data",
   "result",
 ]);
+const APP_TIME_ZONE = "Asia/Damascus";
+const ISO_DATE_PREFIX_REGEX = /^\d{4}-\d{2}-\d{2}/;
 
 const normalizeWhitespace = (value: string): string =>
   value
@@ -175,6 +177,339 @@ const buildStoredEntry = (
   };
 };
 
+const readStringField = (
+  record: Record<string, unknown>,
+  key: string
+): string | undefined => {
+  const value = record[key];
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmedValue = value.trim();
+  return trimmedValue ? trimmedValue : undefined;
+};
+
+const parseMaybeJson = (value: string): unknown => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
+const parseDateValue = (value: unknown): Date | null => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value !== "string" && typeof value !== "number") {
+    return null;
+  }
+
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const getSnapshotDateKey = (...values: unknown[]): string => {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const isoDate = value.match(ISO_DATE_PREFIX_REGEX)?.[0];
+
+      if (isoDate) {
+        return isoDate;
+      }
+    }
+
+    const parsedDate = parseDateValue(value);
+
+    if (parsedDate) {
+      return parsedDate.toLocaleDateString("en-CA", {
+        timeZone: APP_TIME_ZONE,
+      });
+    }
+  }
+
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: APP_TIME_ZONE,
+  });
+};
+
+const normalizeSection = (value: unknown, index: number): AISection | null => {
+  if (!isPlainObject(value)) {
+    return null;
+  }
+
+  const title = readStringField(value, "title") || `Section ${index + 1}`;
+  const content = normalizeWhitespace(
+    readStringField(value, "content") ||
+      readStringField(value, "rawText") ||
+      ""
+  );
+  const order =
+    typeof value.order === "number" && Number.isFinite(value.order)
+      ? value.order
+      : index + 1;
+  const items = Array.isArray(value.items)
+    ? value.items
+        .map((item) => (typeof item === "string" ? normalizeWhitespace(item) : ""))
+        .filter(Boolean)
+    : extractItems(content);
+
+  return {
+    order,
+    title,
+    content,
+    items,
+  };
+};
+
+const looksLikeStoredEntry = (value: unknown): value is Record<string, unknown> =>
+  isPlainObject(value) &&
+  (typeof value.title === "string" ||
+    typeof value.summary === "string" ||
+    typeof value.rawText === "string" ||
+    Array.isArray(value.sections));
+
+const buildStoredEntryFromReport = (
+  report: Record<string, unknown>,
+  createdAtFallback: string
+): AIStoredEntry => {
+  const title = readStringField(report, "title") || "AI Response";
+  const rawText = normalizeWhitespace(
+    readStringField(report, "rawText") ||
+      readStringField(report, "content") ||
+      readStringField(report, "text") ||
+      readStringField(report, "summary") ||
+      JSON.stringify(report, null, 2)
+  );
+  const normalizedSections = Array.isArray(report.sections)
+    ? report.sections
+        .map((section, index) => normalizeSection(section, index))
+        .filter((section): section is AISection => section !== null)
+    : [];
+  const sections =
+    normalizedSections.length > 0
+      ? normalizedSections
+      : parseSections(rawText, title);
+  const summary =
+    readStringField(report, "summary") ||
+    sections[0]?.content ||
+    rawText.slice(0, 200);
+  const storedEntry: AIStoredEntry = {
+    title,
+    rawText,
+    summary: normalizeWhitespace(summary),
+    sections,
+    createdAt: readStringField(report, "createdAt") || createdAtFallback,
+  };
+
+  if (isJsonValue(report)) {
+    storedEntry.payload = report;
+  }
+
+  return storedEntry;
+};
+
+const buildStoredEntryFromUnknown = (
+  value: unknown,
+  createdAtFallback: string
+): AIStoredEntry | null => {
+  if (typeof value === "string") {
+    const parsedValue = parseMaybeJson(value);
+
+    if (looksLikeStoredEntry(parsedValue)) {
+      return buildStoredEntryFromReport(parsedValue, createdAtFallback);
+    }
+
+    if (isJsonValue(parsedValue) && parsedValue !== value) {
+      return buildStoredEntry(parsedValue);
+    }
+
+    return buildStoredEntry(value);
+  }
+
+  if (looksLikeStoredEntry(value)) {
+    return buildStoredEntryFromReport(value, createdAtFallback);
+  }
+
+  if (isJsonValue(value)) {
+    return buildStoredEntry(value);
+  }
+
+  return null;
+};
+
+const unwrapSnapshotBody = (body: unknown): unknown => {
+  if (isPlainObject(body) && Object.prototype.hasOwnProperty.call(body, "prompt")) {
+    return body.prompt;
+  }
+
+  if (isPlainObject(body)) {
+    const entries = Object.entries(body);
+
+    if (entries.length === 1 && JSON_WRAPPER_KEYS.has(entries[0][0])) {
+      return entries[0][1];
+    }
+  }
+
+  return body;
+};
+
+const readNestedStringField = (value: unknown, key: string): string | undefined => {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const nestedValue = readNestedStringField(item, key);
+
+      if (nestedValue) {
+        return nestedValue;
+      }
+    }
+
+    return undefined;
+  }
+
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const directValue = readStringField(value, key);
+
+  if (directValue) {
+    return directValue;
+  }
+
+  for (const nestedKey of ["data", "payload", "result", "response"]) {
+    if (Object.prototype.hasOwnProperty.call(value, nestedKey)) {
+      const nestedValue = readNestedStringField(value[nestedKey], key);
+
+      if (nestedValue) {
+        return nestedValue;
+      }
+    }
+  }
+
+  return undefined;
+};
+
+const extractAIOutputText = (value: unknown): string | null => {
+  const texts: string[] = [];
+
+  const visit = (currentValue: unknown): void => {
+    if (Array.isArray(currentValue)) {
+      currentValue.forEach(visit);
+      return;
+    }
+
+    if (!isPlainObject(currentValue)) {
+      return;
+    }
+
+    const outputText = readStringField(currentValue, "output_text");
+    const text = readStringField(currentValue, "text");
+
+    if (outputText) {
+      texts.push(outputText);
+    }
+
+    if (text) {
+      texts.push(text);
+    }
+
+    for (const nestedKey of ["data", "payload", "result", "response"]) {
+      if (Object.prototype.hasOwnProperty.call(currentValue, nestedKey)) {
+        visit(currentValue[nestedKey]);
+      }
+    }
+
+    if (Array.isArray(currentValue.output)) {
+      currentValue.output.forEach(visit);
+    }
+
+    if (Array.isArray(currentValue.content)) {
+      currentValue.content.forEach(visit);
+    }
+  };
+
+  visit(value);
+
+  return texts.length > 0 ? texts.join("\n").trim() : null;
+};
+
+interface NormalizedSnapshotPayload {
+  date: string;
+  snapshot: Record<string, unknown>;
+  storedEntry?: AIStoredEntry;
+}
+
+const normalizeSnapshotPayload = (body: unknown): NormalizedSnapshotPayload | null => {
+  const payload = unwrapSnapshotBody(body);
+  const now = new Date().toISOString();
+  const sourceCreatedAt = readNestedStringField(payload, "createdAt");
+  const sourceUpdatedAt = readNestedStringField(payload, "updatedAt");
+  const fallbackCreatedAt = sourceCreatedAt || now;
+  const aiOutputText = extractAIOutputText(payload);
+  const parsedAIOutput = aiOutputText ? parseMaybeJson(aiOutputText) : null;
+  const shouldBuildEntryFromPayload =
+    parsedAIOutput === null &&
+    (looksLikeStoredEntry(payload) || typeof payload === "string");
+  const storedEntry =
+    parsedAIOutput !== null
+      ? buildStoredEntryFromUnknown(parsedAIOutput, fallbackCreatedAt)
+      : shouldBuildEntryFromPayload
+      ? buildStoredEntryFromUnknown(payload, fallbackCreatedAt)
+      : null;
+
+  if (storedEntry) {
+    const reportPayload = isPlainObject(parsedAIOutput) ? parsedAIOutput : payload;
+    const date = getSnapshotDateKey(
+      isPlainObject(reportPayload) ? reportPayload.date : undefined,
+      isPlainObject(payload) ? payload.date : undefined,
+      sourceCreatedAt,
+      storedEntry.createdAt
+    );
+    const snapshot: Record<string, unknown> = {
+      date,
+      title: storedEntry.title,
+      summary: storedEntry.summary,
+      rawText: storedEntry.rawText,
+      sections: storedEntry.sections,
+      response: storedEntry,
+      source: aiOutputText ? "n8n" : "api",
+      createdAt: sourceCreatedAt || storedEntry.createdAt,
+      savedAt: now,
+    };
+
+    if (sourceUpdatedAt) {
+      snapshot.sourceUpdatedAt = sourceUpdatedAt;
+    }
+
+    return {
+      date,
+      snapshot,
+      storedEntry,
+    };
+  }
+
+  if (isPlainObject(payload)) {
+    const date = getSnapshotDateKey(payload.date, payload.createdAt, sourceCreatedAt);
+    const snapshot: Record<string, unknown> = {
+      ...payload,
+      date,
+      createdAt: readStringField(payload, "createdAt") || now,
+      savedAt: now,
+    };
+
+    return {
+      date,
+      snapshot,
+    };
+  }
+
+  return null;
+};
+
 
 
 
@@ -182,21 +517,45 @@ const buildStoredEntry = (
 // حفظ snapshot يومي
 export const saveSnapshot = async (req: Request, res: Response) => {
   try {
-    console.log("Received snapshot save request with body:", req.body.prompt);
-    const data = req.body.prompt;
+    console.log("Received snapshot save request with body:", req.body);
+    const normalizedPayload = normalizeSnapshotPayload(req.body);
 
-    if (!data || !data.date) {
-      return res.status(400).json({ error: "Missing snapshot data or date" });
+    if (!normalizedPayload) {
+      return res.status(400).json({ error: "Missing snapshot data" });
     }
 
-    const snapshotRef = ref(database, `analytics/snapshots/${data.date}`);
+    const snapshotRef = ref(
+      database,
+      `analytics/snapshots/${normalizedPayload.date}`
+    );
+    const writes: Promise<unknown>[] = [
+      set(snapshotRef, normalizedPayload.snapshot),
+    ];
+    let entryId: string | null = null;
 
-    await set(snapshotRef, {
-      ...data,
-      createdAt: new Date().toISOString(),
+    if (normalizedPayload.storedEntry) {
+      const historyRef = push(ref(database, "ai/history"));
+      entryId = historyRef.key || null;
+      const aiUpdate: Record<string, unknown> = {
+        lastResponse: normalizedPayload.storedEntry,
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (entryId) {
+        aiUpdate.lastResponseId = entryId;
+      }
+
+      writes.push(set(historyRef, normalizedPayload.storedEntry));
+      writes.push(update(ref(database, "ai"), aiUpdate));
+    }
+
+    await Promise.all(writes);
+
+    res.json({
+      message: "Snapshot saved successfully",
+      date: normalizedPayload.date,
+      entryId,
     });
-
-    res.json({ message: "Snapshot saved successfully" });
   } catch (error: any) {
     console.error("Error saving snapshot:", error);
     res.status(500).json({ error: error.message });
