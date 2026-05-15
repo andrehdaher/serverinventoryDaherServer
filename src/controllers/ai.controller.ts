@@ -341,16 +341,6 @@ const buildStoredEntryFromUnknown = (
   return null;
 };
 
-const addJsonField = (
-  target: Record<string, unknown>,
-  key: string,
-  value: unknown
-) => {
-  if (isJsonValue(value)) {
-    target[key] = value;
-  }
-};
-
 const unwrapSnapshotBody = (body: unknown): unknown => {
   if (isPlainObject(body) && Object.prototype.hasOwnProperty.call(body, "prompt")) {
     return body.prompt;
@@ -497,13 +487,6 @@ const normalizeSnapshotPayload = (body: unknown): NormalizedSnapshotPayload | nu
       savedAt: now,
     };
 
-    addJsonField(snapshot, "reportData", parsedAIOutput);
-    addJsonField(snapshot, "sourcePayload", payload);
-
-    if (aiOutputText) {
-      snapshot.aiOutputText = aiOutputText;
-    }
-
     if (sourceUpdatedAt) {
       snapshot.sourceUpdatedAt = sourceUpdatedAt;
     }
@@ -516,14 +499,6 @@ const normalizeSnapshotPayload = (body: unknown): NormalizedSnapshotPayload | nu
   }
 
   if (isPlainObject(payload)) {
-    const payloadEntries = Object.entries(payload).filter(
-      ([, value]) => value !== undefined
-    );
-
-    if (payloadEntries.length === 0) {
-      return null;
-    }
-
     const date = getSnapshotDateKey(payload.date, payload.createdAt, sourceCreatedAt);
     const snapshot: Record<string, unknown> = {
       ...payload,
@@ -531,8 +506,6 @@ const normalizeSnapshotPayload = (body: unknown): NormalizedSnapshotPayload | nu
       createdAt: readStringField(payload, "createdAt") || now,
       savedAt: now,
     };
-
-    addJsonField(snapshot, "sourcePayload", payload);
 
     return {
       date,
