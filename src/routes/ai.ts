@@ -16,4 +16,5 @@ router.put('/snapshot/save', saveSnapshot);
 router.get("/snapshot/get", getSnapshot);
 router.get('/latest', getLatestResponse);
 router.get('/allData', allData);
+router.post('/save', saveSnapshot);
 export default router;
