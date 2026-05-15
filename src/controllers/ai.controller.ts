@@ -341,6 +341,16 @@ const buildStoredEntryFromUnknown = (
   return null;
 };
 
+const addJsonField = (
+  target: Record<string, unknown>,
+  key: string,
+  value: unknown
+) => {
+  if (isJsonValue(value)) {
+    target[key] = value;
+  }
+};
+
 const unwrapSnapshotBody = (body: unknown): unknown => {
   if (isPlainObject(body) && Object.prototype.hasOwnProperty.call(body, "prompt")) {
     return body.prompt;
@@ -443,6 +453,12 @@ interface NormalizedSnapshotPayload {
   storedEntry?: AIStoredEntry;
 }
 
+interface LatestReportResult {
+  entry: AIStoredEntry;
+  entryId: string | null;
+  updatedAt: string;
+}
+
 const normalizeSnapshotPayload = (body: unknown): NormalizedSnapshotPayload | null => {
   const payload = unwrapSnapshotBody(body);
   const now = new Date().toISOString();
@@ -481,6 +497,13 @@ const normalizeSnapshotPayload = (body: unknown): NormalizedSnapshotPayload | nu
       savedAt: now,
     };
 
+    addJsonField(snapshot, "reportData", parsedAIOutput);
+    addJsonField(snapshot, "sourcePayload", payload);
+
+    if (aiOutputText) {
+      snapshot.aiOutputText = aiOutputText;
+    }
+
     if (sourceUpdatedAt) {
       snapshot.sourceUpdatedAt = sourceUpdatedAt;
     }
@@ -493,6 +516,14 @@ const normalizeSnapshotPayload = (body: unknown): NormalizedSnapshotPayload | nu
   }
 
   if (isPlainObject(payload)) {
+    const payloadEntries = Object.entries(payload).filter(
+      ([, value]) => value !== undefined
+    );
+
+    if (payloadEntries.length === 0) {
+      return null;
+    }
+
     const date = getSnapshotDateKey(payload.date, payload.createdAt, sourceCreatedAt);
     const snapshot: Record<string, unknown> = {
       ...payload,
@@ -501,6 +532,8 @@ const normalizeSnapshotPayload = (body: unknown): NormalizedSnapshotPayload | nu
       savedAt: now,
     };
 
+    addJsonField(snapshot, "sourcePayload", payload);
+
     return {
       date,
       snapshot,
@@ -508,6 +541,79 @@ const normalizeSnapshotPayload = (body: unknown): NormalizedSnapshotPayload | nu
   }
 
   return null;
+};
+
+const sendLatestReport = (
+  res: Response,
+  entry: AIStoredEntry,
+  entryId: string | null,
+  updatedAt?: string
+) => {
+  const resolvedUpdatedAt = updatedAt || entry.createdAt;
+
+  return res.status(200).json({
+    entryId,
+    updatedAt: resolvedUpdatedAt,
+    data: {
+      ...entry,
+      entryId,
+      updatedAt: resolvedUpdatedAt,
+    },
+  });
+};
+
+const getLatestSnapshotReport = async (): Promise<LatestReportResult | null> => {
+  const snapshots = await get(ref(database, "analytics/snapshots"));
+
+  if (!snapshots.exists()) {
+    return null;
+  }
+
+  const snapshotsValue = snapshots.val();
+
+  if (!isPlainObject(snapshotsValue)) {
+    return null;
+  }
+
+  const reports: LatestReportResult[] = [];
+
+  Object.entries(snapshotsValue).forEach(([snapshotDate, snapshotValue]) => {
+    if (!isPlainObject(snapshotValue)) {
+      return;
+    }
+
+    const fallbackCreatedAt =
+      readStringField(snapshotValue, "createdAt") || snapshotDate;
+    const entrySource = isPlainObject(snapshotValue.response)
+      ? snapshotValue.response
+      : snapshotValue;
+    const entry = buildStoredEntryFromUnknown(entrySource, fallbackCreatedAt);
+
+    if (!entry) {
+      return;
+    }
+
+    reports.push({
+      entry,
+      entryId: null,
+      updatedAt:
+        readStringField(snapshotValue, "savedAt") ||
+        readStringField(snapshotValue, "updatedAt") ||
+        readStringField(snapshotValue, "createdAt") ||
+        entry.createdAt,
+    });
+  });
+
+  if (reports.length === 0) {
+    return null;
+  }
+
+  return reports.sort((a, b) => {
+    const bDate = parseDateValue(b.updatedAt)?.getTime() || 0;
+    const aDate = parseDateValue(a.updatedAt)?.getTime() || 0;
+
+    return bDate - aDate;
+  })[0];
 };
 
 
@@ -590,28 +696,39 @@ export const getLatestResponse = async (req: Request, res: Response) => {
   try {
     const snapshot = await get(ref(database, "ai"));
 
-    if (!snapshot.exists()) {
-      return res.status(404).json({ error: "No AI data found." });
+    if (snapshot.exists()) {
+      const aiData = snapshot.val() as AIDataSnapshot;
+
+      if (aiData.lastResponse) {
+        return sendLatestReport(
+          res,
+          aiData.lastResponse,
+          aiData.lastResponseId || null,
+          aiData.updatedAt || aiData.lastResponse.createdAt
+        );
+      }
+
+      if (typeof aiData.lastPrompt === "string" && aiData.lastPrompt.trim()) {
+        const fallbackEntry = buildStoredEntry(aiData.lastPrompt);
+
+        return sendLatestReport(
+          res,
+          fallbackEntry,
+          aiData.lastResponseId || null,
+          aiData.updatedAt || fallbackEntry.createdAt
+        );
+      }
     }
 
-    const aiData = snapshot.val() as AIDataSnapshot;
+    const latestSnapshotReport = await getLatestSnapshotReport();
 
-    if (aiData.lastResponse) {
-      return res.status(200).json({
-        entryId: aiData.lastResponseId || null,
-        updatedAt: aiData.updatedAt || aiData.lastResponse.createdAt,
-        data: aiData.lastResponse,
-      });
-    }
-
-    if (typeof aiData.lastPrompt === "string" && aiData.lastPrompt.trim()) {
-      const fallbackEntry = buildStoredEntry(aiData.lastPrompt);
-
-      return res.status(200).json({
-        entryId: aiData.lastResponseId || null,
-        updatedAt: aiData.updatedAt || fallbackEntry.createdAt,
-        data: fallbackEntry,
-      });
+    if (latestSnapshotReport) {
+      return sendLatestReport(
+        res,
+        latestSnapshotReport.entry,
+        latestSnapshotReport.entryId,
+        latestSnapshotReport.updatedAt
+      );
     }
 
     return res.status(404).json({ error: "No AI response found." });
