@@ -516,8 +516,8 @@ const normalizeSnapshotPayload = (body: unknown): NormalizedSnapshotPayload | nu
 
 // حفظ snapshot يومي
 export const saveSnapshot = async (req: Request, res: Response) => {
+  console.log("Received snapshot save request with body:", req.body);
   try {
-    console.log("Received snapshot save request with body:", req.body);
     const normalizedPayload = normalizeSnapshotPayload(req.body);
 
     if (!normalizedPayload) {
