@@ -603,6 +603,8 @@ export const saveAiReport = async (req: Request, res: Response) => {
     const raw =
       aiResponse?.[0]?.output?.[0]?.content?.[0]?.text || "{}";
 
+      console.log("Received AI response:", raw);
+
     // تحويل النص إلى JSON
     const parsedReport = JSON.parse(raw);
 
