@@ -599,6 +599,9 @@ export const saveAiReport = async (req: Request, res: Response) => {
   try {
     const aiResponse = req.body;
     const saveAi = JSON.stringify(aiResponse[0].output[0].content[0].text, null, 2).toLowerCase()
+    console.log("Received AI response for saving:", saveAi);
+    console.log("Received AI response for asasasasa:", JSON.stringify(aiResponse, null, 2));
+    console.log("Received AI response for asasasasa:", req.body);
     if (saveAi.includes("error") || saveAi.includes("exception")) {
       return res.status(400).json({
         success: false,
