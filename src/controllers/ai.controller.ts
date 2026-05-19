@@ -597,7 +597,7 @@ const getLatestSnapshotReport = async (): Promise<LatestReportResult | null> => 
 export const saveSnapshot = async (req: Request, res: Response) => {
   try {
     const aiRepote = req.body;
-    console.log("Received snapshot payload:", aiRepote);
+    console.log("Received snapshot payload:", req.body);
 
     const normalizedPayload = normalizeSnapshotPayload(aiRepote);
     console.log("Normalized snapshot payload:", normalizedPayload);
