@@ -1,6 +1,7 @@
 import { Response, Request } from "express";
 import { get, push, ref, set, update } from "firebase/database";
 import { database } from "../firebaseConfig";
+import { v4 as uuid } from "uuid";
 import {
   AIDataSnapshot,
   AIJsonValue,
@@ -593,20 +594,62 @@ const getLatestSnapshotReport = async (): Promise<LatestReportResult | null> => 
 
 
 
-// حفظ snapshot يومي
-export const saveSnapshot = async (req: Request, res: Response) => {
-  try {
-    const aiRepote = req.body;
-    console.log("Received snapshot payload:", req.body);
-    console.log("--------------------------------------------------------");
-    console.log("Received snapshot payload:", req.body.prompt);
 
-    const normalizedPayload = normalizeSnapshotPayload(aiRepote);
-    console.log("Normalized snapshot payload:", normalizedPayload);
-    
+export const saveAiReport = async (req: Request, res: Response) => {
+  try {
+    const aiResponse = req.body;
+
+    // استخراج النص القادم من AI
+    const raw =
+      aiResponse?.output?.[0]?.content?.[0]?.text || "{}";
+
+    // تحويل النص إلى JSON
+    const parsedReport = JSON.parse(raw);
+
+    const reportId = uuid();
+
+    const reportData = {
+      id: reportId,
+      type: "financial-analysis",
+
+      title: parsedReport.title || "",
+      summary: parsedReport.summary || "",
+      rawText: parsedReport.rawText || "",
+
+      sections: parsedReport.sections || [],
+
+      snapshot: {
+        totalProducts: 7,
+        totalCustomers: 1,
+        totalSales: 12487512,
+        totalPayments: 800,
+      },
+
+      meta: {
+        generatedBy: "openai",
+        model: "gpt-5.5",
+      },
+
+      createdAt: new Date().toISOString(),
+    };
+
+    await set(
+      ref(database, `aiReports/${reportId}`),
+      reportData
+    );
+
+    return res.status(200).json({
+      success: true,
+      report: reportData,
+    });
+
   } catch (error: any) {
-    console.error("Error saving snapshot:", error);
-    res.status(500).json({ error: error.message });
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
