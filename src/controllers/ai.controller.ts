@@ -599,59 +599,57 @@ export const saveAiReport = async (req: Request, res: Response) => {
   try {
     const aiResponse = req.body;
 
-    // الوصول الصحيح للبيانات
-    const raw =
-      aiResponse?.[0]?.output?.[0]?.content?.[0]?.text || "{}";
+    // attempt to read the most likely text field from the incoming payload
+    const rawCandidate =
+      aiResponse?.[0]?.output?.[0]?.content?.[0]?.text ||
+      readNestedStringField(aiResponse, "text") ||
+      (typeof aiResponse === "string" ? aiResponse : JSON.stringify(aiResponse));
 
-      console.log("Received AI response:", raw);
+    console.log("Received AI response:", rawCandidate);
 
-    // تحويل النص إلى JSON
-    const parsedReport = JSON.parse(raw);
+    const parsed = parseMaybeJson(typeof rawCandidate === "string" ? rawCandidate : JSON.stringify(rawCandidate));
+    const now = new Date().toISOString();
+
+    // try to normalize into the same stored entry / snapshot shape used elsewhere
+    let storedEntry: AIStoredEntry | undefined;
+    let snapshotPayload: Record<string, unknown> | undefined;
+
+    const normalized = normalizeSnapshotPayload(parsed ?? rawCandidate);
+
+    if (normalized?.storedEntry) {
+      storedEntry = normalized.storedEntry;
+      snapshotPayload = normalized.snapshot;
+    } else {
+      // try fallback builders
+      storedEntry = buildStoredEntryFromUnknown(parsed ?? rawCandidate, now) ||
+        (typeof parsed === "string" ? buildStoredEntry(parsed) : undefined) ||
+        buildStoredEntry(JSON.stringify(parsed ?? rawCandidate, null, 2));
+    }
 
     const reportId = uuid();
 
     const reportData = {
       id: reportId,
       type: "financial-analysis",
-
-      title: parsedReport.title || "",
-      summary: parsedReport.summary || "",
-      rawText: parsedReport.rawText || "",
-
-      sections: parsedReport.sections || [],
-
-      snapshot: {
-        totalProducts: 7,
-        totalCustomers: 1,
-        totalSales: 12487512,
-        totalPayments: 800,
-      },
-
+      title: storedEntry?.title || "",
+      summary: storedEntry?.summary || "",
+      rawText: storedEntry?.rawText || (typeof parsed === "string" ? parsed : JSON.stringify(parsed ?? rawCandidate)),
+      sections: storedEntry?.sections || [],
+      snapshot: snapshotPayload || (storedEntry?.payload as Record<string, unknown>) || {},
       meta: {
         generatedBy: "openai",
         model: "gpt-5.5",
       },
-
-      createdAt: new Date().toISOString(),
+      createdAt: storedEntry?.createdAt || now,
     };
 
-    await set(
-      ref(database, `aiReports/${reportId}`),
-      reportData
-    );
+    await set(ref(database, `aiReports/${reportId}`), reportData);
 
-    return res.status(200).json({
-      success: true,
-      report: reportData,
-    });
-
+    return res.status(200).json({ success: true, report: reportData });
   } catch (error: any) {
     console.error(error);
 
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
