@@ -1,6 +1,6 @@
-import { Request, Response } from "express";
+import e, { Request, Response } from "express";
 import { Product } from "../types/product";
-import { ref, get, set, push, remove } from "firebase/database";
+import { ref, get, set, push, remove ,update } from "firebase/database";
 import { database } from "../firebaseConfig";
 
 let productsCache: any = null;
@@ -385,5 +385,80 @@ export const getByWarehouse = async (req: Request, res: Response) => {
     res
       .status(500)
       .json({ products: [], message: "حدث خطأ أثناء جلب المنتجات" });
+  }
+};
+
+
+export const bulkUpdatePrices = async (req: Request, res: Response) => {
+  try {
+    const {
+      productIds,
+      percentageIncrease,
+      priceType,
+    }: {
+      productIds: string[];
+      percentageIncrease: number;
+      priceType: "sellPrice" | "payPrice";
+    } = req.body;
+
+    if (!productIds?.length) {
+      return res.status(400).json({
+        message: "لم يتم تحديد المنتجات",
+      });
+    }
+
+    if (percentageIncrease <= 0) {
+      return res.status(400).json({
+        message: "نسبة الزيادة غير صحيحة",
+      });
+    }
+
+    const snapshot = await get(ref(database, "products"));
+
+    if (!snapshot.exists()) {
+      return res.status(404).json({
+        message: "المنتجات غير موجودة",
+      });
+    }
+
+    const productsData = snapshot.val();
+
+    const updates: any = {};
+
+    for (const warehouse in productsData) {
+      const warehouseProducts = productsData[warehouse];
+
+      for (const productId in warehouseProducts) {
+        const product = warehouseProducts[productId];
+
+        if (!productIds.includes(product.id)) continue;
+
+        const currentPrice = Number(product[priceType] || 0);
+
+        const newPrice =
+          currentPrice +
+          currentPrice * (percentageIncrease / 100);
+
+        updates[`products/${warehouse}/${productId}/${priceType}`] =
+          Number(newPrice.toFixed(2));
+
+        updates[`products/${warehouse}/${productId}/updatedDate`] =
+          new Date().toLocaleString();
+      }
+    }
+
+    await update(ref(database), updates);
+
+    fetchReset();
+
+    return res.status(200).json({
+      message: "تم تحديث الأسعار بنجاح",
+    });
+  } catch (error) {
+    console.error("❌ خطأ في تحديث الأسعار:", error);
+
+    return res.status(500).json({
+      message: "حدث خطأ أثناء تحديث الأسعار",
+    });
   }
 };

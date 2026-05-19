@@ -595,46 +595,13 @@ const getLatestSnapshotReport = async (): Promise<LatestReportResult | null> => 
 
 // حفظ snapshot يومي
 export const saveSnapshot = async (req: Request, res: Response) => {
-  console.log("Received snapshot save request with body:", req.body);
   try {
-    const normalizedPayload = normalizeSnapshotPayload(req.body);
+    const aiRepote = req.body;
+    console.log("Received snapshot payload:", aiRepote);
 
-    if (!normalizedPayload) {
-      return res.status(400).json({ error: "Missing snapshot data" });
-    }
-
-    const snapshotRef = ref(
-      database,
-      `analytics/snapshots/${normalizedPayload.date}`
-    );
-    const writes: Promise<unknown>[] = [
-      set(snapshotRef, normalizedPayload.snapshot),
-    ];
-    let entryId: string | null = null;
-
-    if (normalizedPayload.storedEntry) {
-      const historyRef = push(ref(database, "ai/history"));
-      entryId = historyRef.key || null;
-      const aiUpdate: Record<string, unknown> = {
-        lastResponse: normalizedPayload.storedEntry,
-        updatedAt: new Date().toISOString(),
-      };
-
-      if (entryId) {
-        aiUpdate.lastResponseId = entryId;
-      }
-
-      writes.push(set(historyRef, normalizedPayload.storedEntry));
-      writes.push(update(ref(database, "ai"), aiUpdate));
-    }
-
-    await Promise.all(writes);
-
-    res.json({
-      message: "Snapshot saved successfully",
-      date: normalizedPayload.date,
-      entryId,
-    });
+    const normalizedPayload = normalizeSnapshotPayload(aiRepote);
+    console.log("Normalized snapshot payload:", normalizedPayload);
+    
   } catch (error: any) {
     console.error("Error saving snapshot:", error);
     res.status(500).json({ error: error.message });
