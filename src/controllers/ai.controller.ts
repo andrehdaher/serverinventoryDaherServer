@@ -599,9 +599,9 @@ export const saveAiReport = async (req: Request, res: Response) => {
   try {
     const aiResponse = req.body;
 
-    // استخراج النص القادم من AI
+    // الوصول الصحيح للبيانات
     const raw =
-      aiResponse?.output?.[0]?.content?.[0]?.text || "{}";
+      aiResponse?.[0]?.output?.[0]?.content?.[0]?.text || "{}";
 
     // تحويل النص إلى JSON
     const parsedReport = JSON.parse(raw);
@@ -652,7 +652,6 @@ export const saveAiReport = async (req: Request, res: Response) => {
     });
   }
 };
-
 
 
 export const getSnapshot = async (req: Request, res: Response) => {
