@@ -598,6 +598,8 @@ export const saveSnapshot = async (req: Request, res: Response) => {
   try {
     const aiRepote = req.body;
     console.log("Received snapshot payload:", req.body);
+    console.log("--------------------------------------------------------");
+    console.log("Received snapshot payload:", req.body.prompt);
 
     const normalizedPayload = normalizeSnapshotPayload(aiRepote);
     console.log("Normalized snapshot payload:", normalizedPayload);
