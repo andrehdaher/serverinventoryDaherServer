@@ -598,12 +598,12 @@ const getLatestSnapshotReport = async (): Promise<LatestReportResult | null> => 
 export const saveAiReport = async (req: Request, res: Response) => {
   try {
     const aiResponse = req.body;
+    console.log("Received AI report:", JSON.stringify(aiResponse, null, 2));
+    console.log("Raw request body:", req.body);
+    console.log(req.body[0]);
+    
 
-    // الوصول الصحيح للبيانات
-    const raw =
-      aiResponse?.[0]?.output?.[0]?.content?.[0]?.text || "{}";
-
-      console.log("Received AI response:", raw);
+   
 
   } catch (error: any) {
     console.error(error);
