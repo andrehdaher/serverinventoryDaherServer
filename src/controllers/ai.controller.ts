@@ -594,55 +594,96 @@ const getLatestSnapshotReport = async (): Promise<LatestReportResult | null> => 
 
 
 
-
 export const saveAiReport = async (req: Request, res: Response) => {
   try {
-    const aiResponse = req.body.item;
-    const saveAi = JSON.stringify(aiResponse[0].output[0].content[0].text, null, 2).toLowerCase()
-    console.log("Received AI response for saving:", saveAi);
-    console.log("Received AI response for asasasasa:", JSON.stringify(aiResponse, null, 2));
-    console.log("Received AI response for asasasasa:", req.body);
-    if (saveAi.includes("error") || saveAi.includes("exception")) {
-      return res.status(400).json({
-        success: false,
-        message: "AI response contains error indications. Report not saved.",
-      });
-    }
-    const normalizedPayload = normalizeSnapshotPayload(aiResponse);
-    console.log("Normalized Payload:", normalizedPayload);
 
-    if (!normalizedPayload) {
+    // يدعم Postman و n8n
+    const aiResponse = req.body.item || req.body;
+
+    console.log("REQ BODY:", JSON.stringify(req.body, null, 2));
+
+    // استخراج النص
+    const rawText =
+      aiResponse?.[0]?.output?.[0]?.content?.[0]?.text ||
+      aiResponse?.output?.[0]?.content?.[0]?.text;
+
+    if (!rawText) {
       return res.status(400).json({
         success: false,
-        message: "Unable to parse AI response into a valid snapshot format.",
+        message: "AI text response not found",
       });
     }
-    const { date, snapshot } = normalizedPayload;
-    const newSnapshotRef = ref(database, `analytics/snapshots/${date}/${uuid()}`);
-    await set(newSnapshotRef, snapshot);
-    await update(ref(database, "ai"), {
-      lastResponse: snapshot,
-      lastResponseId: newSnapshotRef.key,
-      updatedAt: snapshot.createdAt,
-    });
+
+    // لا تستخدم JSON.stringify هنا
+    const saveAi = rawText.toLowerCase();
+
+    console.log("RAW TEXT:", rawText);
+
+    if (
+      saveAi.includes("error") ||
+      saveAi.includes("exception")
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "AI response contains error indications. Report not saved.",
+      });
+    }
+
+    // تحويل النص إلى JSON
+    const parsedReport = JSON.parse(rawText);
+
+    const reportId = uuid();
+
+    const reportData = {
+      id: reportId,
+
+      type: "financial-analysis",
+
+      title: parsedReport.title || "",
+
+      summary: parsedReport.summary || "",
+
+      rawText: parsedReport.rawText || "",
+
+      sections: parsedReport.sections || [],
+
+      snapshot: {
+        totalProducts: parsedReport.totalProducts || 0,
+        totalCustomers: parsedReport.totalCustomers || 0,
+        totalSales: parsedReport.totalSales || 0,
+        totalPayments: parsedReport.totalPayments || 0,
+      },
+
+      meta: {
+        generatedBy: "openai",
+        model: "gpt-5.5",
+      },
+
+      createdAt: new Date().toISOString(),
+    };
+
+    await set(
+      ref(database, `aiReports/${reportId}`),
+      reportData
+    );
+
     return res.status(200).json({
       success: true,
-      message: "AI report saved successfully.",
-      snapshotId: newSnapshotRef.key,
+      report: reportData,
     });
 
-   
-  
   } catch (error: any) {
-    console.error(error);
+
+    console.error("SAVE AI REPORT ERROR:", error);
 
     return res.status(500).json({
       success: false,
       message: error.message,
     });
+
   }
 };
-
 
 export const getSnapshot = async (req: Request, res: Response) => {
   try {
