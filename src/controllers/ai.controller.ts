@@ -604,6 +604,7 @@ export const saveAiReport = async (req: Request, res: Response) => {
 
     // استخراج النص
     const rawText =
+    aiResponse||
       aiResponse?.[0]?.output?.[0]?.content?.[0]?.text ||
       aiResponse?.output?.[0]?.content?.[0]?.text;
 
