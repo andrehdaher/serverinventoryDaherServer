@@ -590,6 +590,66 @@ const getLatestSnapshotReport = async (): Promise<LatestReportResult | null> => 
   })[0];
 };
 
+const readNumberField = (
+  record: Record<string, unknown>,
+  key: string
+): number => {
+  const value = record[key];
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const numericValue = Number(value);
+
+    if (Number.isFinite(numericValue)) {
+      return numericValue;
+    }
+  }
+
+  return 0;
+};
+
+const extractSavePayload = (body: unknown): unknown => {
+  const bodyPayload =
+    isPlainObject(body) && Object.prototype.hasOwnProperty.call(body, "item")
+      ? body.item
+      : body;
+  const unwrappedPayload = unwrapSnapshotBody(bodyPayload);
+  const aiOutputText = extractAIOutputText(unwrappedPayload);
+
+  return aiOutputText ? parseMaybeJson(aiOutputText) : unwrappedPayload;
+};
+
+const getValidationText = (value: unknown): string => {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (isJsonValue(value)) {
+    return JSON.stringify(value);
+  }
+
+  return "";
+};
+
+const containsAIError = (value: unknown): boolean => {
+  const validationText = getValidationText(value).toLowerCase();
+
+  return (
+    validationText.includes("error") ||
+    validationText.includes("exception")
+  );
+};
+
+const buildReportSnapshot = (report: Record<string, unknown>) => ({
+  totalProducts: readNumberField(report, "totalProducts"),
+  totalCustomers: readNumberField(report, "totalCustomers"),
+  totalSales: readNumberField(report, "totalSales"),
+  totalPayments: readNumberField(report, "totalPayments"),
+});
+
 
 
 
@@ -597,33 +657,20 @@ const getLatestSnapshotReport = async (): Promise<LatestReportResult | null> => 
 export const saveAiReport = async (req: Request, res: Response) => {
   try {
 
-    // يدعم Postman و n8n
-    const aiResponse = req.body.item || req.body;
-
     console.log("REQ BODY:", JSON.stringify(req.body, null, 2));
 
-    // استخراج النص
-    const rawText =
-    aiResponse||
-      aiResponse?.[0]?.output?.[0]?.content?.[0]?.text ||
-      aiResponse?.output?.[0]?.content?.[0]?.text;
+    const reportPayload = extractSavePayload(req.body);
 
-    if (!rawText) {
+    if (!reportPayload) {
       return res.status(400).json({
         success: false,
-        message: "AI text response not found",
+        message: "AI report payload not found",
       });
     }
 
-    // لا تستخدم JSON.stringify هنا
-    const saveAi = rawText.toLowerCase();
+    console.log("AI REPORT PAYLOAD:", reportPayload);
 
-    console.log("RAW TEXT:", rawText);
-
-    if (
-      saveAi.includes("error") ||
-      saveAi.includes("exception")
-    ) {
+    if (containsAIError(reportPayload)) {
       return res.status(400).json({
         success: false,
         message:
@@ -631,37 +678,40 @@ export const saveAiReport = async (req: Request, res: Response) => {
       });
     }
 
-    // تحويل النص إلى JSON
-    const parsedReport = JSON.parse(rawText);
+    const createdAt = new Date().toISOString();
+    const storedEntry = buildStoredEntryFromUnknown(reportPayload, createdAt);
 
+    if (!storedEntry) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid AI report payload",
+      });
+    }
+
+    const parsedReport = isPlainObject(reportPayload) ? reportPayload : {};
     const reportId = uuid();
-
     const reportData = {
       id: reportId,
 
-      type: "financial-analysis",
+      type: readStringField(parsedReport, "type") || "financial-analysis",
 
-      title: parsedReport.title || "",
+      title: storedEntry.title,
 
-      summary: parsedReport.summary || "",
+      summary: storedEntry.summary,
 
-      rawText: parsedReport.rawText || "",
+      rawText: storedEntry.rawText,
 
-      sections: parsedReport.sections || [],
+      sections: storedEntry.sections,
 
-      snapshot: {
-        totalProducts: parsedReport.totalProducts || 0,
-        totalCustomers: parsedReport.totalCustomers || 0,
-        totalSales: parsedReport.totalSales || 0,
-        totalPayments: parsedReport.totalPayments || 0,
-      },
+      snapshot: buildReportSnapshot(parsedReport),
 
       meta: {
-        generatedBy: "openai",
-        model: "gpt-5.5",
+        generatedBy:
+          readStringField(parsedReport, "generatedBy") || "openai",
+        model: readStringField(parsedReport, "model") || "gpt-5.5",
       },
 
-      createdAt: new Date().toISOString(),
+      createdAt: storedEntry.createdAt || createdAt,
     };
 
     await set(
