@@ -76,7 +76,7 @@ export const createAccount = async (req : Request , res : Response)=>{
       openingBalance: numericOpeningBalance,
       currentBalance: numeriCcurrentBalance,
       currency: currency || "USD",
-      description: description?.trim() || undefined,
+      description: description?.trim() || "",
       isActive: true,
       isSystem: false,
       allowTransactions: true,
