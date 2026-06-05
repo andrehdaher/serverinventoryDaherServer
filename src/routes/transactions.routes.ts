@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import { customerPayment, handleCustomerReturn, handlePurchase, handleSell, handleSupplierReturn, supplierPayment, warehouseTransfer } from "../functions/transactions";
+import { customerPayment, handleBulkPurchase, handleCustomerReturn, handlePurchase, handleSell, handleSupplierReturn, supplierPayment, warehouseTransfer } from "../functions/transactions";
 import { addAfterSellDiscountInternal } from "../controllers/sells.controller";
 import { updateCustomerBalanceInternal } from "../controllers/customer.controller";
 
@@ -15,6 +15,21 @@ router.post("/purchase", async (req: Request, res: Response) => {
     }
     const result = await handlePurchase({newPurchase, newProduct});
     res.json({ message: "✅ تمت عملية الشراء", data: result });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+router.post("/purchase-invoice", async (req: Request, res: Response) => {
+  try {
+    const { newPurchase } = req.body;
+
+    if (!newPurchase) {
+      throw new Error("Purchase invoice data is missing");
+    }
+
+    const result = await handleBulkPurchase({ newPurchase });
+    res.json({ message: "Purchase invoice completed", data: result });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
   }

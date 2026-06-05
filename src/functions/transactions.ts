@@ -142,6 +142,132 @@ export const handlePurchase = async ({
   return purchaseData;
 };
 
+export const handleBulkPurchase = async ({
+  newPurchase,
+}: {
+  newPurchase: purchase;
+}) => {
+  const products = Array.isArray(newPurchase.products)
+    ? newPurchase.products
+    : [];
+
+  if (!products.length) {
+    throw new Error("Purchase invoice must include at least one product");
+  }
+
+  const totalPrice = products.reduce(
+    (sum, product) =>
+      sum +
+      Number(product.lineTotal || Number(product.payPrice || 0) * Number(product.quantity || 0)),
+    0
+  );
+
+  const purchaseData = await createPurchaseInternal({
+    ...newPurchase,
+    name: newPurchase.name || `Purchase invoice (${products.length})`,
+    code: newPurchase.code || `PINV-${Date.now()}`,
+    warehouse:
+      newPurchase.warehouse ||
+      Array.from(new Set(products.map((product) => product.warehouse))).join(", "),
+    quantity:
+      newPurchase.quantity ||
+      products.reduce((sum, product) => sum + Number(product.quantity || 0), 0),
+    payPrice: newPurchase.payPrice || 0,
+    totalPrice,
+    amount_base: newPurchase.amount_base || totalPrice * Number(newPurchase.exchangeRate || 1),
+    products: products.map((product) => ({
+      ...product,
+      lineTotal:
+        product.lineTotal ||
+        Number(product.payPrice || 0) * Number(product.quantity || 0),
+    })),
+  });
+
+  for (const product of products) {
+    await createOrUpdateProductInternal({
+      id: product.id || "",
+      name: product.name,
+      code: product.code,
+      category: product.category,
+      warehouse: product.warehouse,
+      payPrice: Number(product.payPrice || 0),
+      sellPrice: Number(product.sellPrice || 0),
+      unit: product.unit,
+      quantity: Number(product.quantity || 0),
+      updatedDate: "",
+    });
+  }
+
+  await updateSupplierInternal(purchaseData.supplierId, purchaseData);
+
+  const paidAmount = purchaseData.totalPrice - purchaseData.remainingDebt;
+  const note = `Ù‚ÙŠØ¯ ÙØ§ØªÙˆØ±Ø© Ø´Ø±Ø§Ø¡ ${purchaseData.code}`;
+
+  await postLedgerEntries([
+    {
+      accountId: purchaseData.inventoryAccountId,
+      entryType: "debit",
+      amount: purchaseData.totalPrice,
+    },
+    {
+      accountId: purchaseData.paymentAccountId,
+      entryType: "credit",
+      amount: paidAmount,
+    },
+    {
+      accountId: purchaseData.payableAccountId,
+      entryType: "credit",
+      amount: purchaseData.remainingDebt,
+    },
+  ]);
+
+  await createJournalEntryInternal({
+    date: purchaseData.date,
+    description: note,
+    referenceType: "purchase",
+    referenceId: purchaseData.id,
+    lines: toJournalLines(
+      [
+        {
+          accountId: purchaseData.inventoryAccountId,
+          entryType: "debit",
+          amount: purchaseData.totalPrice,
+        },
+        {
+          accountId: purchaseData.paymentAccountId,
+          entryType: "credit",
+          amount: paidAmount,
+        },
+        {
+          accountId: purchaseData.payableAccountId,
+          entryType: "credit",
+          amount: purchaseData.remainingDebt,
+        },
+      ],
+      note
+    ),
+  });
+
+  if (paidAmount > 0) {
+    await createPaymentInternal({
+      type: "expense",
+      supplierId: purchaseData.supplierId,
+      paymentAccountId: purchaseData.paymentAccountId,
+      payableAccountId: purchaseData.payableAccountId,
+      amount: -paidAmount,
+      note:
+        purchaseData.remainingDebt === 0
+          ? "Ø¯ÙØ¹ ÙƒØ§Ù…Ù„ Ø«Ù…Ù† ÙØ§ØªÙˆØ±Ø© Ø´Ø±Ø§Ø¡"
+          : "Ø¯ÙØ¹Ø© Ù…Ù† Ø«Ù…Ù† ÙØ§ØªÙˆØ±Ø© Ø´Ø±Ø§Ø¡",
+      currency: newPurchase.currency,
+      exchangeRate: newPurchase.exchangeRate,
+      amount_base: -(newPurchase.exchangeRate * paidAmount),
+    });
+  }
+
+  return purchaseData;
+};
+
 export const handleSell = async ({ newSell }: { newSell: sell }) => {
   try {
     const sellData = await createSellInternal(newSell);

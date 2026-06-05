@@ -97,15 +97,45 @@ export const getProductById = async (req: Request, res: Response) => {
       : {};
 
     const purchases = Object.values(purchasesData)
-      .filter(
-        (p: any) =>
+      .filter((p: any) => {
+        if (Array.isArray(p.products)) {
+          return p.products.some(
+            (product: any) =>
+              product.code === foundProduct.code &&
+              product.warehouse === foundProduct.warehouse,
+          );
+        }
+
+        return (
           p.code === foundProduct.code &&
-          p.warehouse === foundProduct.warehouse,
-      )
-      .map((p: any) => ({
-        ...p,
-        supplierName: supplierData[p.supplierId]?.name || "مورد غير معروف",
-      }));
+          p.warehouse === foundProduct.warehouse
+        );
+      })
+      .map((p: any) => {
+        const matchedProduct = Array.isArray(p.products)
+          ? p.products.find(
+              (product: any) =>
+                product.code === foundProduct.code &&
+                product.warehouse === foundProduct.warehouse,
+            )
+          : null;
+
+        return {
+          ...p,
+          name: matchedProduct?.name || p.name,
+          code: matchedProduct?.code || p.code,
+          warehouse: matchedProduct?.warehouse || p.warehouse,
+          quantity: matchedProduct?.quantity || p.quantity,
+          payPrice: matchedProduct?.payPrice || p.payPrice,
+          totalPrice:
+            matchedProduct?.lineTotal ||
+            (matchedProduct
+              ? Number(matchedProduct.payPrice || 0) *
+                Number(matchedProduct.quantity || 0)
+              : p.totalPrice),
+          supplierName: supplierData[p.supplierId]?.name || "مورد غير معروف",
+        };
+      });
 
     // جلب المبيعات
     const sellsSnapshot = await get(ref(database, "sells"));
