@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { ref, get, set } from "firebase/database";
 import { database } from "../firebaseConfig";
+import { generateToken } from "../utils/jwt";
 
 export const login = async (req: Request, res: Response) => {
   const { username, password, role } = req.body;
@@ -24,6 +25,11 @@ export const login = async (req: Request, res: Response) => {
     // ✅ تسجيل الدخول ناجح
     return res.json({
       message: "تم تسجيل الدخول بنجاح",
+      token: generateToken({
+        userId: user.username || username,
+        username: user.username || username,
+        role: user.role,
+      }),
       user: {
         username: user.username || username,
         role: user.role,
