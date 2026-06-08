@@ -7,6 +7,7 @@ export interface ReturnData {
   productId: string;
   warehouse: string;
   qty: number;
+  returnValue?: number;
   type: "sale-return" | "purchase-return";
   referenceId?: string | null;
   reason?: string;

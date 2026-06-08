@@ -15,6 +15,7 @@ import {
 } from "../controllers/purchases.controller";
 import { createReturnInternal } from "../controllers/returns.controller";
 import {
+  getReturnableProductFromSellInternal,
   createSellInternal,
   returnProductsFromSellInternal,
 } from "../controllers/sells.controller";
@@ -548,9 +549,37 @@ export const handleCustomerReturn = async (newReturn: {
   receivableAccountId?: string;
   salesAccountId?: string;
 }) => {
+  const returnQty = Math.abs(Number(newReturn.qty || 0));
+  if (!returnQty) {
+    throw new Error("كمية الإرجاع غير صحيحة");
+  }
+
+  const returnableProduct = await getReturnableProductFromSellInternal(
+    newReturn.referenceId,
+    newReturn.productCode,
+    newReturn.warehouse
+  );
+
+  if (!returnableProduct) {
+    throw new Error("المنتج غير موجود في فاتورة البيع");
+  }
+
+  if (returnQty > returnableProduct.qty) {
+    throw new Error("كمية الإرجاع أكبر من الكمية المتبقية في الفاتورة");
+  }
+
+  const returnValue = returnQty * returnableProduct.sellPrice;
+  const refundedCash =
+    newReturn.returnType === "cash"
+      ? returnValue
+      : newReturn.returnType === "part"
+      ? newReturn.partValue
+      : 0;
+
   await createReturnInternal({
     ...newReturn,
-    qty: -newReturn.qty,
+    qty: returnQty,
+    returnValue,
     type: "sale-return",
   });
 
@@ -562,7 +591,7 @@ export const handleCustomerReturn = async (newReturn: {
     salesAccountId: newReturn.salesAccountId,
     amount:
       -(newReturn.returnType === "cash"
-        ? newReturn.returnValue
+        ? returnValue
         : newReturn.returnType === "part"
         ? newReturn.partValue
         : 0),
@@ -572,18 +601,11 @@ export const handleCustomerReturn = async (newReturn: {
     amount_base: 0,
   });
 
-  const refundedCash =
-    newReturn.returnType === "cash"
-      ? newReturn.returnValue
-      : newReturn.returnType === "part"
-      ? newReturn.partValue
-      : 0;
-
   await postLedgerEntries([
     {
       accountId: newReturn.salesAccountId,
       entryType: "debit",
-      amount: newReturn.returnValue,
+      amount: returnValue,
     },
     {
       accountId: newReturn.paymentAccountId,
@@ -593,28 +615,45 @@ export const handleCustomerReturn = async (newReturn: {
     {
       accountId: newReturn.receivableAccountId,
       entryType: "credit",
-      amount: Math.max(newReturn.returnValue - refundedCash, 0),
+      amount: Math.max(returnValue - refundedCash, 0),
     },
   ]);
 
   if (newReturn.returnType === "debt") {
-    await updateCustomerBalanceInternal(newReturn.customerId, newReturn.returnValue);
-  } else if (newReturn.returnType === "part") {
-    await updateCustomerBalanceInternal(
+    const updatedCustomer = await updateCustomerBalanceInternal(
       newReturn.customerId,
-      newReturn.returnValue - newReturn.partValue
+      returnValue
     );
+    if (!updatedCustomer) {
+      throw new Error("الزبون غير موجود لتحديث الرصيد");
+    }
+  } else if (newReturn.returnType === "part") {
+    const updatedCustomer = await updateCustomerBalanceInternal(
+      newReturn.customerId,
+      returnValue - newReturn.partValue
+    );
+    if (!updatedCustomer) {
+      throw new Error("الزبون غير موجود لتحديث الرصيد");
+    }
   } else {
-    await updateCustomerBalanceInternal(newReturn.customerId, 0);
+    const updatedCustomer = await updateCustomerBalanceInternal(
+      newReturn.customerId,
+      0
+    );
+    if (!updatedCustomer) {
+      throw new Error("الزبون غير موجود لتحديث الرصيد");
+    }
   }
 
   await returnProductsFromSellInternal(newReturn.referenceId, [
     {
       code: newReturn.productCode,
       warehouse: newReturn.warehouse,
-      qty: -newReturn.qty,
+      qty: returnQty,
     },
   ]);
+
+  return { success: true, message: "تمت عملية الإرجاع بنجاح" };
 };
 
 export const warehouseTransfer = async (transferData: {

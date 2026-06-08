@@ -357,6 +357,28 @@ export const returnProductsFromSellInternal = async (
 
 
 // جلب المبيعات حسب المستودع والتاريخ
+export const getReturnableProductFromSellInternal = async (
+  sellId: string,
+  code: string,
+  warehouse: string
+): Promise<{ qty: number; sellPrice: number } | null> => {
+  const sellRef = ref(database, `sells/${sellId}`);
+  const sellSnap = await get(sellRef);
+  if (!sellSnap.exists()) return null;
+
+  const sellData: sell = sellSnap.val();
+  const product = sellData.products.find(
+    (p) => p.code === code && p.warehouse === warehouse
+  );
+
+  if (!product) return null;
+
+  return {
+    qty: Number(product.qty || 0),
+    sellPrice: Number(product.sellPrice || 0),
+  };
+};
+
 export const getSalesByWarehouseAndDate = async (
   req: Request,
   res: Response,
