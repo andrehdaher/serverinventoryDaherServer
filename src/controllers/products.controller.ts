@@ -11,6 +11,28 @@ const fetchReset = () => {
   lastFetch = Date.now() - compareTime;
 }
 
+const normalizeAlertQuantity = (value: unknown) => {
+  if (value === undefined || value === null || value === "") return undefined;
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue >= 0
+    ? numericValue
+    : undefined;
+};
+
+const withNormalizedAlertQuantity = (product: Product): Product => {
+  const alertQuantity = normalizeAlertQuantity(product.alertQuantity);
+  const normalizedProduct: Product = { ...product };
+
+  if (alertQuantity === undefined) {
+    delete normalizedProduct.alertQuantity;
+  } else {
+    normalizedProduct.alertQuantity = alertQuantity;
+  }
+
+  return normalizedProduct;
+};
+
 export const getAll = async (_req: Request, res: Response) => {
   try {
     if (productsCache && Date.now() - lastFetch < compareTime) {
@@ -189,7 +211,7 @@ export const create = async (req: Request, res: Response) => {
     const newRef = push(warehouseRef);
 
     const productData: Product = {
-      ...newProduct,
+      ...withNormalizedAlertQuantity(newProduct),
       id: newRef.key!,
       updatedDate: NowDate,
     };
@@ -263,6 +285,16 @@ export const updateProduct = async (req: Request, res: Response) => {
             updatedDate: new Date().toLocaleString(),
           };
 
+          if ("alertQuantity" in updatedFields) {
+            const alertQuantity = normalizeAlertQuantity(updatedFields.alertQuantity);
+
+            if (alertQuantity === undefined) {
+              delete newData.alertQuantity;
+            } else {
+              newData.alertQuantity = alertQuantity;
+            }
+          }
+
           await set(
             ref(database, `products/${warehouse}/${productId}`),
             newData,
@@ -327,6 +359,7 @@ export const createOrUpdateProductInternal = async (
       const existingProduct: Product = products[productId];
 
       if (existingProduct.code === newProduct.code) {
+        const alertQuantity = normalizeAlertQuantity(newProduct.alertQuantity);
         // تحديث المنتج
         const updatedProduct: Product = {
           ...existingProduct,
@@ -335,6 +368,11 @@ export const createOrUpdateProductInternal = async (
           updatedDate: NowDate,
           id: productId, // مهم جداً: المفتاح من الـ DB
         };
+
+        updatedProduct.alertQuantity =
+          alertQuantity === undefined
+            ? existingProduct.alertQuantity
+            : alertQuantity;
 
         // حفظ التحديث
         await set(
@@ -350,7 +388,7 @@ export const createOrUpdateProductInternal = async (
   const newRef = push(warehouseRef);
 
   const productToAdd: Product = {
-    ...newProduct,
+    ...withNormalizedAlertQuantity(newProduct),
     updatedDate: NowDate,
     id: newRef.key!, // id هو مفتاح push في Firebase
   };

@@ -18,6 +18,7 @@ export interface purchase {
         payPrice: number,
         sellPrice: number,
         unit: string,
+        alertQuantity?: number,
         lineTotal?: number,
     }[],
     currency: string,

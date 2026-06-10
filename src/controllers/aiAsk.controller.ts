@@ -314,12 +314,23 @@ const sellGrossProfit = (sale: DataRecord): number => {
 };
 
 const answerLowStock = (data: BusinessData): string => {
+  const getProductAlertLimit = (product: DataRecord) => {
+    const explicitLimit =
+      product.alertQuantity ?? product.lowStockLimit ?? product.minQuantity;
+    const numericLimit = Number(explicitLimit);
+
+    return Number.isFinite(numericLimit) && explicitLimit !== undefined
+      ? numericLimit
+      : LOW_STOCK_LIMIT;
+  };
+
   const lowStockProducts = data.products
     .map((product) => ({
       product,
       quantity: readNumber(product, ["quantity", "qty"]),
+      alertLimit: getProductAlertLimit(product),
     }))
-    .filter((item) => item.quantity <= LOW_STOCK_LIMIT)
+    .filter((item) => item.quantity <= item.alertLimit)
     .sort((a, b) => a.quantity - b.quantity);
 
   if (!lowStockProducts.length) {
@@ -329,8 +340,8 @@ const answerLowStock = (data: BusinessData): string => {
   const lines = lowStockProducts
     .slice(0, MAX_LIST_ITEMS)
     .map(
-      ({ product, quantity }, index) =>
-        `${index + 1}. ${productLabel(product)}: الكمية ${formatNumber(quantity)}`
+      ({ product, quantity, alertLimit }, index) =>
+        `${index + 1}. ${productLabel(product)}: الكمية ${formatNumber(quantity)} / حد التنبيه ${formatNumber(alertLimit)}`
     );
 
   return [

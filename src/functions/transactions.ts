@@ -195,6 +195,10 @@ export const handleBulkPurchase = async ({
       sellPrice: Number(product.sellPrice || 0),
       unit: product.unit,
       quantity: Number(product.quantity || 0),
+      alertQuantity:
+        product.alertQuantity === undefined
+          ? undefined
+          : Number(product.alertQuantity || 0),
       updatedDate: "",
     });
   }
