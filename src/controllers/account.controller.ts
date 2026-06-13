@@ -45,7 +45,10 @@ export const createAccount = async (req : Request , res : Response)=>{
     if (!type || !type.trim()) {
       return res.status(400).json({ error: "نوع الحساب مطلوب" });
     }
-        const numeriCcurrentBalance = Number(currentBalance || 0);
+        const numeriCcurrentBalance =
+          currentBalance === undefined || currentBalance === ""
+            ? numericOpeningBalance
+            : Number(currentBalance);
 
     if (isNaN(numeriCcurrentBalance)) {
       return res.status(400).json({ error: "الرصيد الافتتاحي يجب أن يكون رقماً" });

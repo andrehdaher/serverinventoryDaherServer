@@ -470,7 +470,17 @@ export const handleSupplierReturn = async (newReturn: {
   paymentAccountId?: string;
 }) => {
   try {
-    await createReturnInternal({ ...newReturn, type: "purchase-return" });
+    const returnQty = Math.abs(Number(newReturn.qty || 0));
+
+    if (!returnQty) {
+      throw new Error("كمية الإرجاع غير صحيحة");
+    }
+
+    await createReturnInternal({
+      ...newReturn,
+      qty: returnQty,
+      type: "purchase-return",
+    });
 
     const paymentAmount =
       newReturn.returnType === "cash"
@@ -519,17 +529,14 @@ export const handleSupplierReturn = async (newReturn: {
     ]);
 
     const purchaseData = await getPurchaseByIdInternal(newReturn.referenceId);
-    const updatedQuantity = (purchaseData?.quantity || 0) + newReturn.qty;
+    const updatedQuantity = Math.max(
+      Number(purchaseData?.quantity || 0) - returnQty,
+      0
+    );
 
     await updatePurchaseInternal(newReturn.referenceId, {
       quantity: updatedQuantity,
     });
-
-    await updateQuantityOnSell(
-      newReturn.productId,
-      newReturn.warehouse,
-      newReturn.qty
-    );
 
     return { success: true, message: "تمت عملية الإرجاع بنجاح" };
   } catch (error) {
@@ -671,8 +678,11 @@ export const warehouseTransfer = async (transferData: {
   quantity: number;
   note: string;
   newSellPrice?: number;
+  paymentStatus?: "cash" | "debt" | "part";
+  partValue?: number;
   expenseAccountId?: string;
   paymentAccountId?: string;
+  payableAccountId?: string;
 }) => {
   try {
     const product = await getProductByIdInternal(transferData.productId);
@@ -718,19 +728,33 @@ export const warehouseTransfer = async (transferData: {
     });
 
     if (transferData.amount > 0) {
-      await createPaymentInternal({
+      const paymentStatus = transferData.paymentStatus || "cash";
+      const paidAmount =
+        paymentStatus === "cash"
+          ? transferData.amount
+          : paymentStatus === "part"
+          ? Number(transferData.partValue || 0)
+          : 0;
+      const payableAmount = Math.max(transferData.amount - paidAmount, 0);
+
+      if (paidAmount > 0) {
+        await createPaymentInternal({
         type: "expense",
         supplierId: "transfer",
         expenseAccountId: transferData.expenseAccountId,
         paymentAccountId: transferData.paymentAccountId,
         currency: transferData.currency,
         exchangeRate: transferData.exchangeRate,
-        amount_base: transferData.amount_base,
-        amount: Number(-transferData.amount),
+        amount_base:
+          transferData.currency === "USD"
+            ? -paidAmount
+            : -(paidAmount * transferData.exchangeRate),
+        amount: Number(-paidAmount),
         note:
           `نقل ${product.product.name} // ${transferData.note}` ||
           `Transfer: ${product.product.name || transferData.productId}`,
-      });
+        });
+      }
 
       await postLedgerEntries([
         {
@@ -741,7 +765,12 @@ export const warehouseTransfer = async (transferData: {
         {
           accountId: transferData.paymentAccountId,
           entryType: "credit",
-          amount: transferData.amount,
+          amount: paidAmount,
+        },
+        {
+          accountId: transferData.payableAccountId,
+          entryType: "credit",
+          amount: payableAmount,
         },
       ]);
     }

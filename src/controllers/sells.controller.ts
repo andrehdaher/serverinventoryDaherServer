@@ -276,11 +276,24 @@ export const deleteSellById = async (req: Request, res: Response) => {
     const productsSnap = await get(ref(database, "products"));
     const products = productsSnap.exists() ? productsSnap.val() : {};
 
-    for (const p of sellData.products) {
+    for (const p of sellData.products || []) {
       const warehouse = p.warehouse;
-      const code = p.code;
-      if (products[warehouse] && products[warehouse][code]) {
-        products[warehouse][code].quantity += parseFloat(p.qty);
+      const quantity = Number(p.qty || p.quantity || 0);
+
+      if (!warehouse || !quantity || !products[warehouse]) continue;
+
+      let productId = p.id || p.productId;
+
+      if (!products[warehouse][productId] && p.code) {
+        productId = Object.keys(products[warehouse]).find(
+          (key) => products[warehouse][key]?.code === p.code
+        );
+      }
+
+      if (productId && products[warehouse][productId]) {
+        products[warehouse][productId].quantity =
+          Number(products[warehouse][productId].quantity || 0) + quantity;
+        products[warehouse][productId].updatedDate = new Date().toLocaleString();
       }
     }
 
@@ -291,7 +304,8 @@ export const deleteSellById = async (req: Request, res: Response) => {
     const customerSnap = await get(customerRef);
     if (customerSnap.exists()) {
       const customer = customerSnap.val();
-      customer.balance = (customer.balance || 0) + sellData.totalPrice;
+      customer.balance =
+        Number(customer.balance || 0) + Number(sellData.remainingDebt || 0);
       await update(customerRef, customer);
     }
 

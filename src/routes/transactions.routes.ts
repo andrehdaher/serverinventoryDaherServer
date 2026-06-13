@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import { customerPayment, handleBulkPurchase, handleCustomerReturn, handlePurchase, handleSell, handleSupplierReturn, supplierPayment, warehouseTransfer } from "../functions/transactions";
 import { addAfterSellDiscountInternal } from "../controllers/sells.controller";
 import { updateCustomerBalanceInternal } from "../controllers/customer.controller";
+import { endExchange } from "../controllers/exchange.controller";
 
 const router = express.Router();
 
@@ -47,6 +48,8 @@ router.post("/sell", async (req: Request, res: Response) => {
     res.status(400).json({ message: error.message });
   }
 });
+
+router.post("/endExchange", endExchange);
 
 router.post("/customerPayment", async (req: Request, res: Response) => {
   try {

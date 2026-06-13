@@ -13,6 +13,8 @@ import journalEntriesRouter from "./journalEntries.routes";
 import aiRoutes from "./ai";
 import returnsRouter from "./returns.routes";
 import invoiceDraftRouter from "./invoiceDraft.routes";
+import exchangeRouter from "./exchange.routes";
+import doneExchangeRouter from "./doneExchange.routes";
 
 
 const router = Router();
@@ -32,6 +34,8 @@ router.use("/returns", returnsRouter);
 router.use("/journal-entries", journalEntriesRouter);
 router.use("/ai", aiRoutes);
 router.use("/invoice-draft", invoiceDraftRouter);
+router.use("/exchange", exchangeRouter);
+router.use("/doneExchange", doneExchangeRouter);
 
 
 export default router;
