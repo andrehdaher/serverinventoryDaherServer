@@ -179,6 +179,37 @@ export const getCustomerById = async (req: Request, res: Response) => {
 
     const customer: Customer = customerSnap.val();
 
+    const toNumber = (value: unknown) => {
+      const numberValue = Number(value);
+      return Number.isFinite(numberValue) ? numberValue : 0;
+    };
+
+    const getPaymentStatusLabel = (status: string) => {
+      if (status === "cash") return "نقدي";
+      if (status === "part") return "جزئي";
+      if (status === "debt") return "دين";
+      return "غير محدد";
+    };
+
+    const enrichSellForCustomer = (sale: any) => {
+      const totalPrice = toNumber(sale?.totalPrice);
+      const remainingDebt = toNumber(sale?.remainingDebt);
+      const paidAmount = Math.max(totalPrice - remainingDebt, 0);
+      const products = Array.isArray(sale?.products) ? sale.products : [];
+
+      return {
+        ...sale,
+        paymentStatusLabel: getPaymentStatusLabel(sale?.paymentStatus),
+        paidAmount,
+        remainingDebt,
+        productsString: products
+          .map((product: any) =>
+            `${product?.name || "منتج"} (${toNumber(product?.qty)})`
+          )
+          .join(", "),
+      };
+    };
+
     // 🔹 جلب مشترياته فقط
     let purchases: sell[] = [];
     if (customer.purchases?.length) {
@@ -186,7 +217,9 @@ export const getCustomerById = async (req: Request, res: Response) => {
         const pSnap = await get(ref(database, `sells/${pid}`));
         return pSnap.exists() ? pSnap.val() : null;
       });
-      purchases = (await Promise.all(promises)).filter(Boolean) as sell[];
+      purchases = (await Promise.all(promises))
+        .filter(Boolean)
+        .map(enrichSellForCustomer) as sell[];
     }
 
     // 🔹 جلب مدفوعاته فقط
