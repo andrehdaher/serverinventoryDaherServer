@@ -15,11 +15,13 @@ import returnsRouter from "./returns.routes";
 import invoiceDraftRouter from "./invoiceDraft.routes";
 import exchangeRouter from "./exchange.routes";
 import doneExchangeRouter from "./doneExchange.routes";
+import usersRouter from "./users.routes";
 
 
 const router = Router();
 
 router.use("/auth", authRoutes);
+router.use("/users", usersRouter);
 
 router.use("/products", productsRouter);
 router.use("/suppliers", suppliersRouter);
