@@ -52,16 +52,24 @@ const requireAdmin = (req: Request, res: Response) => {
   return currentUser;
 };
 
+const getUserEntries = async () => {
+  const snapshot = await get(ref(database, USERS_PATH));
+
+  return snapshot.exists()
+    ? Object.entries(snapshot.val() as Record<string, InventoryUser>)
+    : [];
+};
+
+const countAdmins = (users: Array<[string, InventoryUser]>) =>
+  users.filter(([, user]) => normalizeRole(user.role) === "admin").length;
+
 export const getAllUsers = async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
   try {
-    const snapshot = await get(ref(database, USERS_PATH));
-    const users = snapshot.exists()
-      ? Object.entries(snapshot.val() as Record<string, InventoryUser>).map(
-          ([key, user]) => toUserResponse(key, user),
-        )
-      : [];
+    const users = (await getUserEntries()).map(([key, user]) =>
+      toUserResponse(key, user),
+    );
 
     res.json(users);
   } catch (error: any) {
@@ -123,7 +131,8 @@ export const createUser = async (req: Request, res: Response) => {
 };
 
 export const updateUser = async (req: Request, res: Response) => {
-  if (!requireAdmin(req, res)) return;
+  const currentUser = requireAdmin(req, res);
+  if (!currentUser) return;
 
   const { id } = req.params;
 
@@ -142,6 +151,26 @@ export const updateUser = async (req: Request, res: Response) => {
     const existingUser = snapshot.val() as InventoryUser;
     const nextRole =
       req.body.role === undefined ? existingUser.role : normalizeRole(req.body.role);
+
+    if (
+      (currentUser.username === id || currentUser.userId === id) &&
+      nextRole !== "admin"
+    ) {
+      return res
+        .status(400)
+        .json({ error: "You cannot remove admin role from your own user" });
+    }
+
+    if (normalizeRole(existingUser.role) === "admin" && nextRole !== "admin") {
+      const adminCount = countAdmins(await getUserEntries());
+
+      if (adminCount <= 1) {
+        return res
+          .status(400)
+          .json({ error: "At least one admin user is required" });
+      }
+    }
+
     const updates: Partial<InventoryUser> = {
       role: nextRole,
       permissions:
@@ -195,6 +224,18 @@ export const deleteUser = async (req: Request, res: Response) => {
 
     if (!snapshot.exists()) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    const existingUser = snapshot.val() as InventoryUser;
+
+    if (normalizeRole(existingUser.role) === "admin") {
+      const adminCount = countAdmins(await getUserEntries());
+
+      if (adminCount <= 1) {
+        return res
+          .status(400)
+          .json({ error: "At least one admin user is required" });
+      }
     }
 
     await remove(dbRef);
