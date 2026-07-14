@@ -11,6 +11,8 @@ const fetchReset = () => {
   lastFetch = Date.now() - compareTime;
 }
 
+export const resetProductsCache = fetchReset;
+
 const normalizeAlertQuantity = (value: unknown) => {
   if (value === undefined || value === null || value === "") return undefined;
 
@@ -33,6 +35,12 @@ const withNormalizedAlertQuantity = (product: Product): Product => {
   return normalizedProduct;
 };
 
+const withNormalizedStockFields = (product: Product): Product => ({
+  ...withNormalizedAlertQuantity(product),
+  quantity: Number(product.quantity || 0),
+  reservedQuantity: Number(product.reservedQuantity || 0),
+});
+
 export const getAll = async (_req: Request, res: Response) => {
   try {
     if (productsCache && Date.now() - lastFetch < compareTime) {
@@ -47,6 +55,8 @@ export const getAll = async (_req: Request, res: Response) => {
             id,
             category: categoryName,
             ...product,
+            quantity: Number(product?.quantity || 0),
+            reservedQuantity: Number(product?.reservedQuantity || 0),
           })),
         )
       : [];
@@ -211,7 +221,7 @@ export const create = async (req: Request, res: Response) => {
     const newRef = push(warehouseRef);
 
     const productData: Product = {
-      ...withNormalizedAlertQuantity(newProduct),
+      ...withNormalizedStockFields(newProduct),
       id: newRef.key!,
       updatedDate: NowDate,
     };
@@ -237,30 +247,186 @@ export const updateQuantityOnSell = async (
   soldQuantity: number,
 ): Promise<Product | null> => {
   const productRef = ref(database, `products/${warehouse}/${productId}`);
-  console.log(soldQuantity);
   const snapshot = await get(productRef);
   if (!snapshot.exists()) return null;
 
   const existingProduct: Product = snapshot.val();
-  if (existingProduct.quantity < soldQuantity) {
-    console.log(
-      `❌ الكمية غير كافية. المتاح: ${existingProduct.quantity}, المطلوب: ${soldQuantity}`,
-    );
+  const currentQuantity = Number(existingProduct.quantity || 0);
+  const reservedQuantity = Number(existingProduct.reservedQuantity || 0);
+  const availableQuantity = currentQuantity - reservedQuantity;
+
+  if (availableQuantity < soldQuantity) {
     throw new Error(
-      `❌ الكمية غير كافية. المتاح: ${existingProduct.quantity}, المطلوب: ${soldQuantity}`,
+      `Insufficient available quantity. Available: ${availableQuantity}, requested: ${soldQuantity}`,
     );
   }
-  console.log(existingProduct);
 
   fetchReset();
 
-  const newQuantity = existingProduct.quantity - soldQuantity;
+  const newQuantity = currentQuantity - soldQuantity;
   existingProduct.quantity = newQuantity;
   existingProduct.updatedDate = new Date().toLocaleString();
-  console.log(existingProduct);
   await set(productRef, existingProduct);
 
   return existingProduct;
+};
+
+export const assertProductAvailableForSellInternal = async (
+  productId: string,
+  warehouse: string,
+  soldQuantity: number,
+) => {
+  const productRef = ref(database, `products/${warehouse}/${productId}`);
+  const snapshot = await get(productRef);
+
+  if (!snapshot.exists()) {
+    throw new Error("Product not found");
+  }
+
+  const product: Product = snapshot.val();
+  const availableQuantity =
+    Number(product.quantity || 0) - Number(product.reservedQuantity || 0);
+
+  if (availableQuantity < Number(soldQuantity || 0)) {
+    throw new Error(
+      `Insufficient available quantity. Available: ${availableQuantity}, requested: ${soldQuantity}`,
+    );
+  }
+
+  return product;
+};
+
+export const reserveProductQuantityInternal = async (
+  productId: string,
+  warehouse: string,
+  quantityToReserve: number,
+): Promise<Product> => {
+  const reserveQty = Number(quantityToReserve || 0);
+
+  if (!productId || !warehouse || reserveQty <= 0) {
+    throw new Error("Invalid reservation quantity");
+  }
+
+  const productRef = ref(database, `products/${warehouse}/${productId}`);
+  const snapshot = await get(productRef);
+
+  if (!snapshot.exists()) {
+    throw new Error("Product not found");
+  }
+
+  const product: Product = snapshot.val();
+  const currentQuantity = Number(product.quantity || 0);
+  const currentReserved = Number(product.reservedQuantity || 0);
+  const availableQuantity = currentQuantity - currentReserved;
+
+  if (availableQuantity < reserveQty) {
+    throw new Error(
+      `Insufficient available quantity. Available: ${availableQuantity}, requested: ${reserveQty}`,
+    );
+  }
+
+  const updatedProduct: Product = {
+    ...product,
+    reservedQuantity: currentReserved + reserveQty,
+    updatedDate: new Date().toLocaleString(),
+  };
+
+  await set(productRef, updatedProduct);
+  fetchReset();
+
+  return updatedProduct;
+};
+
+export const releaseReservedQuantityInternal = async (
+  productId: string,
+  warehouse: string,
+  quantityToRelease: number,
+): Promise<Product> => {
+  const releaseQty = Number(quantityToRelease || 0);
+
+  if (!productId || !warehouse || releaseQty <= 0) {
+    throw new Error("Invalid reserved quantity release");
+  }
+
+  const productRef = ref(database, `products/${warehouse}/${productId}`);
+  const snapshot = await get(productRef);
+
+  if (!snapshot.exists()) {
+    throw new Error("Product not found");
+  }
+
+  const product: Product = snapshot.val();
+  const currentReserved = Number(product.reservedQuantity || 0);
+
+  if (releaseQty > currentReserved) {
+    throw new Error(
+      `Reserved quantity is lower than requested release. Reserved: ${currentReserved}, release: ${releaseQty}`,
+    );
+  }
+
+  const updatedProduct: Product = {
+    ...product,
+    reservedQuantity: Math.max(currentReserved - releaseQty, 0),
+    updatedDate: new Date().toLocaleString(),
+  };
+
+  await set(productRef, updatedProduct);
+  fetchReset();
+
+  return updatedProduct;
+};
+
+export const settleReservedQuantityOnSellInternal = async (
+  productId: string,
+  warehouse: string,
+  soldQuantity: number,
+  reservedQuantityToRelease: number,
+): Promise<Product> => {
+  const soldQty = Number(soldQuantity || 0);
+  const releaseQty = Number(reservedQuantityToRelease || 0);
+
+  if (!productId || !warehouse || soldQty < 0 || releaseQty <= 0) {
+    throw new Error("Invalid reserved stock settlement");
+  }
+
+  if (soldQty > releaseQty) {
+    throw new Error("Used quantity cannot exceed reserved quantity");
+  }
+
+  const productRef = ref(database, `products/${warehouse}/${productId}`);
+  const snapshot = await get(productRef);
+
+  if (!snapshot.exists()) {
+    throw new Error("Product not found");
+  }
+
+  const product: Product = snapshot.val();
+  const currentQuantity = Number(product.quantity || 0);
+  const currentReserved = Number(product.reservedQuantity || 0);
+
+  if (releaseQty > currentReserved) {
+    throw new Error(
+      `Reserved quantity is lower than requested release. Reserved: ${currentReserved}, release: ${releaseQty}`,
+    );
+  }
+
+  if (soldQty > currentQuantity) {
+    throw new Error(
+      `Insufficient quantity. Quantity: ${currentQuantity}, requested: ${soldQty}`,
+    );
+  }
+
+  const updatedProduct: Product = {
+    ...product,
+    quantity: currentQuantity - soldQty,
+    reservedQuantity: Math.max(currentReserved - releaseQty, 0),
+    updatedDate: new Date().toLocaleString(),
+  };
+
+  await set(productRef, updatedProduct);
+  fetchReset();
+
+  return updatedProduct;
 };
 
 export const updateProduct = async (req: Request, res: Response) => {
@@ -282,6 +448,16 @@ export const updateProduct = async (req: Request, res: Response) => {
           const newData = {
             ...warehouses[warehouse][productId],
             ...updatedFields,
+            quantity:
+              updatedFields.quantity === undefined
+                ? Number(warehouses[warehouse][productId].quantity || 0)
+                : Number(updatedFields.quantity || 0),
+            reservedQuantity:
+              updatedFields.reservedQuantity === undefined
+                ? Number(
+                    warehouses[warehouse][productId].reservedQuantity || 0,
+                  )
+                : Number(updatedFields.reservedQuantity || 0),
             updatedDate: new Date().toLocaleString(),
           };
 
@@ -364,7 +540,10 @@ export const createOrUpdateProductInternal = async (
         const updatedProduct: Product = {
           ...existingProduct,
           ...newProduct,
-          quantity: existingProduct.quantity + newProduct.quantity,
+          quantity:
+            Number(existingProduct.quantity || 0) +
+            Number(newProduct.quantity || 0),
+          reservedQuantity: Number(existingProduct.reservedQuantity || 0),
           updatedDate: NowDate,
           id: productId, // مهم جداً: المفتاح من الـ DB
         };
@@ -388,7 +567,7 @@ export const createOrUpdateProductInternal = async (
   const newRef = push(warehouseRef);
 
   const productToAdd: Product = {
-    ...withNormalizedAlertQuantity(newProduct),
+    ...withNormalizedStockFields(newProduct),
     updatedDate: NowDate,
     id: newRef.key!, // id هو مفتاح push في Firebase
   };

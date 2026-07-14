@@ -8,6 +8,7 @@ export interface Product {
   sellPrice?: number;
   unit?: string;
   quantity: number;
+  reservedQuantity?: number;
   alertQuantity?: number;
   warehouse: string;
   updatedDate?: string;

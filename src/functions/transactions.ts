@@ -4,6 +4,7 @@ import {
 } from "../controllers/customer.controller";
 import { createPaymentInternal } from "../controllers/payments.controller";
 import {
+  assertProductAvailableForSellInternal,
   createOrUpdateProductInternal,
   getProductByIdInternal,
   updateQuantityOnSell,
@@ -30,6 +31,8 @@ import { Payment } from "../types/payment";
 import { Product } from "../types/product";
 import { purchase } from "../types/purchase";
 import { sell } from "../types/sell";
+
+type SellStockUpdater = (product: sell["products"][number]) => Promise<void>;
 
 type LedgerEntry = {
   accountId?: string;
@@ -273,13 +276,33 @@ export const handleBulkPurchase = async ({
   return purchaseData;
 };
 
-export const handleSell = async ({ newSell }: { newSell: sell }) => {
+export const handleSell = async ({
+  newSell,
+  stockUpdater,
+}: {
+  newSell: sell;
+  stockUpdater?: SellStockUpdater;
+}) => {
   try {
+    if (!stockUpdater) {
+      for (const product of newSell.products) {
+        await assertProductAvailableForSellInternal(
+          product.id,
+          product.warehouse,
+          product.qty,
+        );
+      }
+    }
+
     const sellData = await createSellInternal(newSell);
     const paidAmount = sellData.totalPrice - sellData.remainingDebt;
 
     for (const product of newSell.products) {
-      await updateQuantityOnSell(product.id, product.warehouse, product.qty);
+      if (stockUpdater) {
+        await stockUpdater(product);
+      } else {
+        await updateQuantityOnSell(product.id, product.warehouse, product.qty);
+      }
     }
 
     await updateCustomerInternal(sellData.customerId, sellData);
@@ -361,6 +384,7 @@ export const handleSell = async ({ newSell }: { newSell: sell }) => {
     return sellData;
   } catch (err) {
     console.log(err);
+    throw err;
   }
 };
 

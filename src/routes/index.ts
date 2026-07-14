@@ -16,6 +16,7 @@ import invoiceDraftRouter from "./invoiceDraft.routes";
 import exchangeRouter from "./exchange.routes";
 import doneExchangeRouter from "./doneExchange.routes";
 import usersRouter from "./users.routes";
+import materialReservationsRouter from "./materialReservations.routes";
 
 
 const router = Router();
@@ -38,6 +39,7 @@ router.use("/ai", aiRoutes);
 router.use("/invoice-draft", invoiceDraftRouter);
 router.use("/exchange", exchangeRouter);
 router.use("/doneExchange", doneExchangeRouter);
+router.use("/material-reservations", materialReservationsRouter);
 
 
 export default router;

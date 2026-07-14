@@ -171,9 +171,14 @@ export const updateSellById = async (req: Request, res: Response) => {
       }
 
       const currentQty = Number(qtySnap.val());
+      const reservedSnap = await get(
+        ref(database, `products/${newP.warehouse}/${newP.id}/reservedQuantity`)
+      );
+      const reservedQty = Number(reservedSnap.exists() ? reservedSnap.val() : 0);
+      const availableQty = currentQty - reservedQty;
       const newQty = currentQty - Number(newP.qty);
 
-      if (newQty < 0) {
+      if (Number(newP.qty) > availableQty) {
         return res.status(400).json({
           message: `❌ الكمية غير كافية للمنتج ${newP.code}`,
         });
