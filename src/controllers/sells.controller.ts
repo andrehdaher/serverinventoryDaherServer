@@ -234,6 +234,7 @@ export const updateSellById = async (req: Request, res: Response) => {
       id: paymentId,
       type: "sell_edit",
       customerId: sellData.customerId,
+      sellId: id,
       currency: sellData.currency || "",
       exchangeRate: 1,
       amount_base: newTotalPrice,
@@ -319,6 +320,7 @@ export const deleteSellById = async (req: Request, res: Response) => {
     const payment: Payment = {
       type: "sell_delete",
       customerId: sellData.customerId,
+      sellId: sellData.id,
       currency: sellData.currency || "",
       exchangeRate: 1,
       amount_base: 0,

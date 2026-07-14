@@ -31,6 +31,8 @@ import { Payment } from "../types/payment";
 import { Product } from "../types/product";
 import { purchase } from "../types/purchase";
 import { sell } from "../types/sell";
+import { database } from "../firebaseConfig";
+import { get, ref, update } from "firebase/database";
 
 type SellStockUpdater = (product: sell["products"][number]) => Promise<void>;
 
@@ -65,6 +67,62 @@ const toJournalLines = (entries: LedgerEntry[], note: string) => {
       credit: entry.entryType === "credit" ? Number(entry.amount || 0) : 0,
       note,
     }));
+};
+
+const applyCustomerPaymentToSell = async (paymentData: Payment) => {
+  if (!paymentData.sellId) return null;
+
+  const amount = Number(paymentData.amount || 0);
+
+  if (amount <= 0) {
+    throw new Error("Invoice payment amount must be greater than zero");
+  }
+
+  const sellRef = ref(database, `sells/${paymentData.sellId}`);
+  const sellSnapshot = await get(sellRef);
+
+  if (!sellSnapshot.exists()) {
+    throw new Error("Sell invoice not found");
+  }
+
+  const sellData: sell = sellSnapshot.val();
+
+  if (paymentData.customerId && sellData.customerId !== paymentData.customerId) {
+    throw new Error("Payment customer does not match invoice customer");
+  }
+
+  const currentRemainingDebt = Number(sellData.remainingDebt || 0);
+
+  if (currentRemainingDebt <= 0) {
+    throw new Error("Invoice is already fully paid");
+  }
+
+  if (amount > currentRemainingDebt) {
+    throw new Error(
+      `Payment amount is greater than invoice remaining debt. Remaining: ${currentRemainingDebt}`,
+    );
+  }
+
+  const nextRemainingDebt = Number((currentRemainingDebt - amount).toFixed(3));
+  const nextPaidAmount = Number(
+    (Number(sellData.totalPrice || 0) - nextRemainingDebt).toFixed(3),
+  );
+  const nextPaymentStatus: sell["paymentStatus"] =
+    nextRemainingDebt === 0 ? "cash" : "part";
+
+  await update(sellRef, {
+    remainingDebt: nextRemainingDebt,
+    paymentStatus: nextPaymentStatus,
+    partValue: nextPaidAmount,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return {
+    ...sellData,
+    remainingDebt: nextRemainingDebt,
+    paymentStatus: nextPaymentStatus,
+    partValue: nextPaidAmount,
+  };
 };
 
 export const handlePurchase = async ({
@@ -356,6 +414,7 @@ export const handleSell = async ({
       await createPaymentInternal({
         type: "income",
         customerId: sellData.customerId,
+        sellId: sellData.id,
         paymentAccountId: sellData.paymentAccountId,
         receivableAccountId: sellData.receivableAccountId,
         salesAccountId: sellData.salesAccountId,
@@ -369,6 +428,7 @@ export const handleSell = async ({
       await createPaymentInternal({
         type: "income",
         customerId: sellData.customerId,
+        sellId: sellData.id,
         paymentAccountId: sellData.paymentAccountId,
         receivableAccountId: sellData.receivableAccountId,
         salesAccountId: sellData.salesAccountId,
@@ -389,6 +449,7 @@ export const handleSell = async ({
 };
 
 export const customerPayment = async (paymentData: Payment) => {
+  const updatedSell = await applyCustomerPaymentToSell(paymentData);
   const data = await createPaymentInternal(paymentData);
 
   if (data.customerId) {
@@ -430,7 +491,7 @@ export const customerPayment = async (paymentData: Payment) => {
     ),
   });
 
-  return data;
+  return { payment: data, sell: updatedSell };
 };
 
 export const supplierPayment = async (paymentData: Payment) => {

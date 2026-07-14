@@ -191,9 +191,42 @@ export const getCustomerById = async (req: Request, res: Response) => {
       return "غير محدد";
     };
 
+    const paymentsRef = ref(database, "payment");
+    const paymentsSnap = await get(paymentsRef);
+    const payments = paymentsSnap.exists()
+      ? (Object.values(paymentsSnap.val()).filter(
+          (p: any) => p.customerId === id
+        ) as any[])
+      : [];
+
+    const paymentsBySell = payments.reduce(
+      (grouped: Record<string, any[]>, payment: any) => {
+        if (!payment?.sellId) return grouped;
+
+        grouped[payment.sellId] = grouped[payment.sellId] || [];
+        grouped[payment.sellId].push(payment);
+        return grouped;
+      },
+      {}
+    );
+
     const enrichSellForCustomer = (sale: any) => {
       const totalPrice = toNumber(sale?.totalPrice);
       const remainingDebt = toNumber(sale?.remainingDebt);
+      const invoicePayments = (paymentsBySell[sale?.id] || [])
+        .filter(
+          (payment: any) =>
+            payment?.type === "income" && toNumber(payment?.amount) > 0
+        )
+        .sort(
+          (a: any, b: any) =>
+            new Date(b?.date || 0).getTime() -
+            new Date(a?.date || 0).getTime()
+        );
+      const invoicePaymentsTotal = invoicePayments.reduce(
+        (sum: number, payment: any) => sum + toNumber(payment?.amount),
+        0
+      );
       const paidAmount = Math.max(totalPrice - remainingDebt, 0);
       const products = Array.isArray(sale?.products) ? sale.products : [];
 
@@ -201,6 +234,9 @@ export const getCustomerById = async (req: Request, res: Response) => {
         ...sale,
         paymentStatusLabel: getPaymentStatusLabel(sale?.paymentStatus),
         paidAmount,
+        invoicePayments,
+        invoicePaymentsTotal,
+        invoicePaymentsCount: invoicePayments.length,
         remainingDebt,
         productsString: products
           .map((product: any) =>
@@ -221,15 +257,6 @@ export const getCustomerById = async (req: Request, res: Response) => {
         .filter(Boolean)
         .map(enrichSellForCustomer) as sell[];
     }
-
-    // 🔹 جلب مدفوعاته فقط
-    const paymentsRef = ref(database, "payment");
-    const paymentsSnap = await get(paymentsRef);
-    const payments = paymentsSnap.exists()
-      ? Object.values(paymentsSnap.val()).filter(
-          (p: any) => p.customerId === id
-        )
-      : [];
 
     res.json({
       data: {

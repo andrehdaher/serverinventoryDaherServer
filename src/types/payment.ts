@@ -4,6 +4,7 @@ export interface Payment {
     type: string,
     supplierId?: string,
     customerId?: string,
+    sellId?: string,
     paymentAccountId?: string,
     receivableAccountId?: string,
     payableAccountId?: string,
