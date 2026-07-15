@@ -190,6 +190,18 @@ export const getSupplierById = async (req: Request, res: Response) => {
 
     const supplier = snapshot.val() as Supplier;
 
+    const toNumber = (value: unknown) => {
+      const numberValue = Number(value);
+      return Number.isFinite(numberValue) ? numberValue : 0;
+    };
+
+    const getPaymentStatusLabel = (status: string) => {
+      if (status === "cash") return "نقدي";
+      if (status === "part") return "جزئي";
+      if (status === "debt") return "دين";
+      return "غير محدد";
+    };
+
     // جلب المشتريات
     const purchasesSnapshot = await get(ref(database, "purchases"));
     const purchasesData = purchasesSnapshot.exists()
@@ -206,8 +218,65 @@ export const getSupplierById = async (req: Request, res: Response) => {
       ? Object.values(paymentSnapshot.val())
       : [];
     const payments = paymentsData.filter((p: any) => p.supplierId === id || p?.supplierId?.id === id );
+    const paymentsByPurchase = payments.reduce(
+      (grouped: Record<string, any[]>, payment: any) => {
+        if (!payment?.purchaseId) return grouped;
 
-    res.json({ data: { ...supplier, purchases, payments } });
+        grouped[payment.purchaseId] = grouped[payment.purchaseId] || [];
+        grouped[payment.purchaseId].push(payment);
+        return grouped;
+      },
+      {}
+    );
+
+    const enrichedPurchases = purchases
+      .filter(Boolean)
+      .map((purchaseData: any) => {
+        const totalPrice = toNumber(purchaseData?.totalPrice);
+        const remainingDebt = toNumber(purchaseData?.remainingDebt);
+        const invoicePayments = (paymentsByPurchase[purchaseData?.id] || [])
+          .filter(
+            (payment: any) =>
+              payment?.type === "expense" && toNumber(payment?.amount) < 0
+          )
+          .sort(
+            (a: any, b: any) =>
+              new Date(b?.date || 0).getTime() -
+              new Date(a?.date || 0).getTime()
+          );
+        const invoicePaymentsTotal = invoicePayments.reduce(
+          (sum: number, payment: any) =>
+            sum + Math.abs(toNumber(payment?.amount)),
+          0
+        );
+        const paidAmount = Math.max(totalPrice - remainingDebt, 0);
+        const products = Array.isArray(purchaseData?.products)
+          ? purchaseData.products
+          : [];
+
+        return {
+          ...purchaseData,
+          paymentStatusLabel: getPaymentStatusLabel(purchaseData?.paymentStatus),
+          paidAmount,
+          invoicePayments,
+          invoicePaymentsTotal,
+          invoicePaymentsCount: invoicePayments.length,
+          remainingDebt,
+          productsString:
+            products.length > 0
+              ? products
+                  .map(
+                    (product: any) =>
+                      `${product?.name || "منتج"} (${toNumber(
+                        product?.quantity
+                      )})`
+                  )
+                  .join(", ")
+              : purchaseData?.name || purchaseData?.code || "",
+        };
+      });
+
+    res.json({ data: { ...supplier, purchases: enrichedPurchases, payments } });
   } catch (error) {
     console.error("❌ خطأ أثناء جلب المورد:", error);
     res.status(500).json({ message: "حدث خطأ أثناء جلب المورد" });

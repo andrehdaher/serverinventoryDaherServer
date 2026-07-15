@@ -17,6 +17,7 @@ import exchangeRouter from "./exchange.routes";
 import doneExchangeRouter from "./doneExchange.routes";
 import usersRouter from "./users.routes";
 import materialReservationsRouter from "./materialReservations.routes";
+import quotationsRouter from "./quotations.routes";
 
 
 const router = Router();
@@ -40,6 +41,7 @@ router.use("/invoice-draft", invoiceDraftRouter);
 router.use("/exchange", exchangeRouter);
 router.use("/doneExchange", doneExchangeRouter);
 router.use("/material-reservations", materialReservationsRouter);
+router.use("/quotations", quotationsRouter);
 
 
 export default router;

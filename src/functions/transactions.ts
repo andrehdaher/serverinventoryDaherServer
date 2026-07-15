@@ -125,6 +125,65 @@ const applyCustomerPaymentToSell = async (paymentData: Payment) => {
   };
 };
 
+const applySupplierPaymentToPurchase = async (paymentData: Payment) => {
+  if (!paymentData.purchaseId) return null;
+
+  const rawAmount = Number(paymentData.amount || 0);
+  const amount = Math.abs(rawAmount);
+
+  if (rawAmount >= 0 || amount <= 0) {
+    throw new Error("Supplier invoice payment amount must reduce supplier debt");
+  }
+
+  const purchaseRef = ref(database, `purchases/${paymentData.purchaseId}`);
+  const purchaseSnapshot = await get(purchaseRef);
+
+  if (!purchaseSnapshot.exists()) {
+    throw new Error("Purchase invoice not found");
+  }
+
+  const purchaseData: purchase = purchaseSnapshot.val();
+
+  if (
+    paymentData.supplierId &&
+    purchaseData.supplierId !== paymentData.supplierId
+  ) {
+    throw new Error("Payment supplier does not match purchase invoice supplier");
+  }
+
+  const currentRemainingDebt = Number(purchaseData.remainingDebt || 0);
+
+  if (currentRemainingDebt <= 0) {
+    throw new Error("Purchase invoice is already fully paid");
+  }
+
+  if (amount > currentRemainingDebt) {
+    throw new Error(
+      `Payment amount is greater than purchase invoice remaining debt. Remaining: ${currentRemainingDebt}`,
+    );
+  }
+
+  const nextRemainingDebt = Number((currentRemainingDebt - amount).toFixed(3));
+  const nextPaidAmount = Number(
+    (Number(purchaseData.totalPrice || 0) - nextRemainingDebt).toFixed(3),
+  );
+  const nextPaymentStatus = nextRemainingDebt === 0 ? "cash" : "part";
+
+  await update(purchaseRef, {
+    remainingDebt: nextRemainingDebt,
+    paymentStatus: nextPaymentStatus,
+    paidAmount: nextPaidAmount,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return {
+    ...purchaseData,
+    remainingDebt: nextRemainingDebt,
+    paymentStatus: nextPaymentStatus,
+    paidAmount: nextPaidAmount,
+  };
+};
+
 export const handlePurchase = async ({
   newPurchase,
   newProduct,
@@ -188,6 +247,7 @@ export const handlePurchase = async ({
     await createPaymentInternal({
       type: "expense",
       supplierId: purchaseData.supplierId,
+      purchaseId: purchaseData.id,
       paymentAccountId: purchaseData.paymentAccountId,
       payableAccountId: purchaseData.payableAccountId,
       amount: -paidAmount,
@@ -318,6 +378,7 @@ export const handleBulkPurchase = async ({
     await createPaymentInternal({
       type: "expense",
       supplierId: purchaseData.supplierId,
+      purchaseId: purchaseData.id,
       paymentAccountId: purchaseData.paymentAccountId,
       payableAccountId: purchaseData.payableAccountId,
       amount: -paidAmount,
@@ -495,6 +556,7 @@ export const customerPayment = async (paymentData: Payment) => {
 };
 
 export const supplierPayment = async (paymentData: Payment) => {
+  const updatedPurchase = await applySupplierPaymentToPurchase(paymentData);
   const data = await createPaymentInternal(paymentData);
 
   if (data.supplierId) {
@@ -536,7 +598,7 @@ export const supplierPayment = async (paymentData: Payment) => {
     ),
   });
 
-  return data;
+  return { payment: data, purchase: updatedPurchase };
 };
 
 export const handleSupplierReturn = async (newReturn: {
