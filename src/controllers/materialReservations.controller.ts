@@ -33,6 +33,27 @@ const toNumber = (value: unknown, fallback = 0) => {
 
 const nowIso = () => new Date().toISOString();
 
+const stripUndefined = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map(stripUndefined) as T;
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).reduce(
+      (cleaned, [key, entryValue]) => {
+        if (entryValue !== undefined) {
+          cleaned[key] = stripUndefined(entryValue);
+        }
+
+        return cleaned;
+      },
+      {} as Record<string, unknown>,
+    ) as T;
+  }
+
+  return value;
+};
+
 const itemKey = (productId: string, warehouse: string) =>
   `${warehouse}::${productId}`;
 
@@ -278,7 +299,10 @@ export const createMaterialReservation = async (req: Request, res: Response) => 
       updatedBy: getActorName(req),
     };
 
-    await set(ref(database, `${RESERVATIONS_PATH}/${id}`), reservation);
+    await set(
+      ref(database, `${RESERVATIONS_PATH}/${id}`),
+      stripUndefined(reservation),
+    );
 
     res.json({ message: "Reservation created", data: reservation });
   } catch (error: any) {
@@ -453,7 +477,10 @@ export const closeMaterialReservation = async (req: Request, res: Response) => {
       updatedBy: getActorName(req),
     };
 
-    await update(ref(database, `${RESERVATIONS_PATH}/${reservation.id}`), updates);
+    await update(
+      ref(database, `${RESERVATIONS_PATH}/${reservation.id}`),
+      stripUndefined(updates),
+    );
 
     res.json({
       message: "Reservation closed",
@@ -493,7 +520,10 @@ export const cancelMaterialReservation = async (req: Request, res: Response) => 
       updatedBy: getActorName(req),
     };
 
-    await update(ref(database, `${RESERVATIONS_PATH}/${reservation.id}`), updates);
+    await update(
+      ref(database, `${RESERVATIONS_PATH}/${reservation.id}`),
+      stripUndefined(updates),
+    );
 
     res.json({
       message: "Reservation cancelled",
