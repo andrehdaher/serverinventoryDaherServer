@@ -46,6 +46,8 @@ export const login = async (req: Request, res: Response) => {
         username: currentUsername,
         role: userRole,
         permissions,
+        vehicleId: user.vehicleId || "",
+        vehicleName: user.vehicleName || "",
       },
     });
   } catch (error: any) {

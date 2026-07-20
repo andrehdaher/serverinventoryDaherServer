@@ -18,6 +18,7 @@ import doneExchangeRouter from "./doneExchange.routes";
 import usersRouter from "./users.routes";
 import materialReservationsRouter from "./materialReservations.routes";
 import quotationsRouter from "./quotations.routes";
+import vehiclesRouter from "./vehicles.routes";
 
 
 const router = Router();
@@ -42,6 +43,7 @@ router.use("/exchange", exchangeRouter);
 router.use("/doneExchange", doneExchangeRouter);
 router.use("/material-reservations", materialReservationsRouter);
 router.use("/quotations", quotationsRouter);
+router.use("/vehicles", vehiclesRouter);
 
 
 export default router;

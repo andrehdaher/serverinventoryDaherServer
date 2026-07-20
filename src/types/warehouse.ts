@@ -3,6 +3,13 @@ export interface Warehouse {
   name: string;
   location?: string;
   isActive: boolean;
+  type?: "standard" | "vehicle";
+  plateNumber?: string;
+  driverId?: string;
+  driverName?: string;
+  defaultPaymentAccountId?: string;
+  defaultReceivableAccountId?: string;
+  defaultSalesAccountId?: string;
   createdDate: string;
   updatedDate: string;
 }

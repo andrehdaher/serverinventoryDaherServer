@@ -277,11 +277,6 @@ export const createMaterialReservation = async (req: Request, res: Response) => 
       items.push(await normalizeReservationItem(rawItem, requestedByProduct));
     }
 
-    for (const [key, reservedQty] of requestedByProduct) {
-      const [warehouse, productId] = key.split("::");
-      await reserveProductQuantityInternal(productId, warehouse, reservedQty);
-    }
-
     const id = uuidv4();
     const now = nowIso();
     const reservation: MaterialReservation = {
@@ -299,10 +294,35 @@ export const createMaterialReservation = async (req: Request, res: Response) => 
       updatedBy: getActorName(req),
     };
 
-    await set(
-      ref(database, `${RESERVATIONS_PATH}/${id}`),
-      stripUndefined(reservation),
-    );
+    const reservedProducts: Array<{
+      productId: string;
+      warehouse: string;
+      reservedQty: number;
+    }> = [];
+
+    try {
+      for (const [key, reservedQty] of requestedByProduct) {
+        const [warehouse, productId] = key.split("::");
+        await reserveProductQuantityInternal(productId, warehouse, reservedQty);
+        reservedProducts.push({ productId, warehouse, reservedQty });
+      }
+
+      await set(
+        ref(database, `${RESERVATIONS_PATH}/${id}`),
+        stripUndefined(reservation),
+      );
+    } catch (error) {
+      await Promise.all(
+        reservedProducts.map(({ productId, warehouse, reservedQty }) =>
+          releaseReservedQuantityInternal(productId, warehouse, reservedQty).catch(
+            (releaseError) =>
+              console.error("Failed to rollback reserved quantity", releaseError),
+          ),
+        ),
+      );
+
+      throw error;
+    }
 
     res.json({ message: "Reservation created", data: reservation });
   } catch (error: any) {

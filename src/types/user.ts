@@ -4,6 +4,8 @@ export interface InventoryUser {
   password?: string;
   role: string;
   permissions?: string[];
+  vehicleId?: string;
+  vehicleName?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -13,6 +15,8 @@ export interface InventoryUserResponse {
   username: string;
   role: string;
   permissions: string[];
+  vehicleId?: string;
+  vehicleName?: string;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -26,4 +26,9 @@ export interface sell {
   date?: string;
   partValue?: number;
   discount?: number;
+  vehicleId?: string;
+  vehicleName?: string;
+  driverId?: string;
+  driverName?: string;
+  sourceWarehouse?: string;
 }

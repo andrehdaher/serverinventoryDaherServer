@@ -29,6 +29,8 @@ const toUserResponse = (
   username: user.username || key,
   role: normalizeRole(user.role),
   permissions: normalizePermissions(user.permissions),
+  vehicleId: user.vehicleId,
+  vehicleName: user.vehicleName,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
 });
@@ -88,6 +90,10 @@ export const createUser = async (req: Request, res: Response) => {
   const role = normalizeRole(req.body.role);
   const permissions =
     role === "admin" ? [] : normalizePermissions(req.body.permissions);
+  const vehicleId =
+    typeof req.body.vehicleId === "string" ? req.body.vehicleId.trim() : "";
+  const vehicleName =
+    typeof req.body.vehicleName === "string" ? req.body.vehicleName.trim() : "";
 
   if (isInvalidUsername(username)) {
     return res.status(400).json({
@@ -114,6 +120,8 @@ export const createUser = async (req: Request, res: Response) => {
       password,
       role,
       permissions,
+      ...(vehicleId ? { vehicleId } : {}),
+      ...(vehicleName ? { vehicleName } : {}),
       createdAt: now,
       updatedAt: now,
     };
@@ -181,6 +189,30 @@ export const updateUser = async (req: Request, res: Response) => {
             : normalizePermissions(req.body.permissions),
       updatedAt: getTimestamp(),
     };
+
+    if (req.body.vehicleId !== undefined) {
+      const vehicleId =
+        typeof req.body.vehicleId === "string" ? req.body.vehicleId.trim() : "";
+
+      if (vehicleId) {
+        updates.vehicleId = vehicleId;
+      } else {
+        updates.vehicleId = "";
+      }
+    }
+
+    if (req.body.vehicleName !== undefined) {
+      const vehicleName =
+        typeof req.body.vehicleName === "string"
+          ? req.body.vehicleName.trim()
+          : "";
+
+      if (vehicleName) {
+        updates.vehicleName = vehicleName;
+      } else {
+        updates.vehicleName = "";
+      }
+    }
 
     if (typeof req.body.password === "string" && req.body.password.trim()) {
       updates.password = req.body.password;
